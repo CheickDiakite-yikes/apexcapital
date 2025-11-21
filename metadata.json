@@ -1,0 +1,5 @@
+{
+  "name": "Apex Capital AI - IB Agent",
+  "description": "An autonomous AI Investment Banking agent featuring a futuristic mission-control interface. It performs deep research, generates 3-statement models, DCFs, and LBO analyses using real-time market data.",
+  "requestFramePermissions": []
+}

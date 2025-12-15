@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight } from 'lucide-react';
+import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4 } from 'lucide-react';
 import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage } from '../services/geminiService';
 import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio } from '../types';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart } from 'recharts';
 
 // --- MOCK DATA FOR DASHBOARD ---
 
@@ -469,6 +469,339 @@ const InsiderTrades = ({ transactions }: { transactions: any[] }) => {
     );
 };
 
+const ScoreBar = ({ score, label, icon: Icon }: { score: number, label: string, icon: any }) => (
+  <div className="mb-4">
+    <div className="flex justify-between items-center mb-1">
+      <div className="flex items-center gap-2 text-xs text-slate-400 uppercase font-bold">
+        <Icon size={12} /> {label}
+      </div>
+      <div className="text-xs font-mono font-bold text-white">{score}/5</div>
+    </div>
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <div 
+          key={s} 
+          className={`h-1.5 flex-1 rounded-sm ${s <= score ? 'bg-cyan-500' : 'bg-slate-800'}`}
+        />
+      ))}
+    </div>
+  </div>
+);
+
+const ScenarioBar = ({ thesis, currentPrice }: { thesis: InvestmentThesis, currentPrice: number }) => {
+  const min = Math.min(thesis.targetPriceBear, currentPrice) * 0.9;
+  const max = Math.max(thesis.targetPriceBull, currentPrice) * 1.1;
+  const range = max - min;
+  
+  const getPos = (val: number) => {
+      const pos = ((val - min) / range) * 100;
+      return Math.max(0, Math.min(100, pos));
+  }
+
+  return (
+    <div className="relative h-12 w-full mt-6 mb-2">
+      <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2 rounded"></div>
+      
+      {/* Bear */}
+      <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBear)}%` }}>
+         <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-black z-10"></div>
+         <div className="mt-2 text-[10px] text-red-500 font-bold">${thesis.targetPriceBear}</div>
+         <div className="text-[9px] text-slate-500 uppercase">Bear</div>
+      </div>
+
+      {/* Base */}
+      <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBase)}%` }}>
+         <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-black z-10"></div>
+         <div className="mt-2 text-[10px] text-blue-500 font-bold">${thesis.targetPriceBase}</div>
+         <div className="text-[9px] text-slate-500 uppercase">Base</div>
+      </div>
+
+      {/* Bull */}
+      <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBull)}%` }}>
+         <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-black z-10"></div>
+         <div className="mt-2 text-[10px] text-green-500 font-bold">${thesis.targetPriceBull}</div>
+         <div className="text-[9px] text-slate-500 uppercase">Bull</div>
+      </div>
+
+      {/* Current Price */}
+      <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-20" style={{ left: `${getPos(currentPrice)}%` }}>
+         <div className="w-4 h-4 bg-white rotate-45 border-2 border-cyan-500 shadow-[0_0_10px_rgba(255,255,255,0.5)]"></div>
+         <div className="mb-4 text-xs text-white font-bold bg-slate-900 px-1 rounded border border-slate-700">${currentPrice}</div>
+      </div>
+    </div>
+  );
+};
+
+const FinancialStatementTable = ({ statement }: { statement: Statement }) => {
+    if (!statement || !statement.rows || statement.rows.length === 0) return null;
+    
+    // Assume last 3 historical, next 3 projected.
+    const currentYear = new Date().getFullYear();
+    const histLen = statement.rows[0].historical.length;
+    const historicalYears = statement.rows[0].historical.map((_, i) => currentYear - (histLen - i));
+    const projectedYears = statement.rows[0].projected.map((_, i) => currentYear + 1 + i);
+
+    return (
+        <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-xs font-mono border-collapse min-w-[600px]">
+                <thead>
+                    <tr className="border-b border-slate-800 text-slate-500">
+                        <th className="p-2 bg-slate-900/80 sticky left-0 z-10 border-r border-slate-800">METRIC ({statement.rows[0].unit})</th>
+                        {historicalYears.map(y => <th key={y} className="p-2 text-right">{y}A</th>)}
+                        {projectedYears.map(y => <th key={y} className="p-2 text-right text-cyan-400 bg-cyan-900/10">{y}E</th>)}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                    {statement.rows.map((row, i) => (
+                        <tr key={i} className="hover:bg-slate-800/50 transition-colors">
+                            <td className="p-2 bg-slate-900/80 sticky left-0 z-10 border-r border-slate-800 font-bold text-slate-300 truncate max-w-[150px]">{row.metric}</td>
+                            {row.historical.map((val, idx) => (
+                                <td key={`h-${idx}`} className="p-2 text-right text-slate-400">{val.toLocaleString()}</td>
+                            ))}
+                            {row.projected.map((val, idx) => (
+                                <td key={`p-${idx}`} className="p-2 text-right text-cyan-300 bg-cyan-900/5">{val.toLocaleString()}</td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const RatiosGrid = ({ ratios }: { ratios: FinancialRatios }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    {[
+      { title: 'Profitability', data: ratios.profitability, color: 'text-green-400', border: 'border-green-900/30' },
+      { title: 'Liquidity', data: ratios.liquidity, color: 'text-blue-400', border: 'border-blue-900/30' },
+      { title: 'Solvency', data: ratios.solvency, color: 'text-red-400', border: 'border-red-900/30' },
+      { title: 'Efficiency', data: ratios.efficiency, color: 'text-yellow-400', border: 'border-yellow-900/30' }
+    ].map((cat) => (
+      <div key={cat.title} className={`bg-slate-900/50 border ${cat.border} p-4 rounded`}>
+        <h4 className={`text-xs uppercase font-bold mb-4 ${cat.color}`}>{cat.title}</h4>
+        <div className="space-y-3">
+          {cat.data.map((r, i) => (
+            <div key={i} className="flex justify-between items-center border-b border-slate-800 pb-2 last:border-0">
+              <span className="text-xs text-slate-400">{r.name}</span>
+              <span className="text-sm font-mono font-bold text-white">{r.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const ResearchReport = ({ data }: { data: FullAnalysis }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [generatingImg, setGeneratingImg] = useState(false);
+
+  useEffect(() => {
+     // Trigger image generation only if prompt exists and we haven't generated yet
+     if (data.researchMemo.imagePrompt && !imageUrl && !generatingImg) {
+         setGeneratingImg(true);
+         generateInsightImage(data.researchMemo.imagePrompt)
+            .then(url => {
+                if (url) setImageUrl(url);
+            })
+            .finally(() => setGeneratingImg(false));
+     }
+  }, [data.researchMemo.imagePrompt]); // Only re-run if prompt changes
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white text-black font-serif p-8 md:p-12 shadow-2xl relative overflow-hidden min-h-screen">
+        {/* Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+            <div className="text-6xl md:text-9xl font-bold uppercase -rotate-45">Confidential</div>
+        </div>
+
+        <div className="border-b-4 border-black pb-4 mb-8 flex flex-col md:flex-row justify-between md:items-end gap-4">
+            <div>
+                <h1 className="text-4xl font-bold uppercase tracking-tight">{data.profile.name}</h1>
+                <div className="text-sm font-sans uppercase tracking-widest mt-2 text-slate-600">Equity Research | {data.profile.ticker} | {data.profile.sector}</div>
+            </div>
+            <div className="text-left md:text-right">
+                <div className={`text-2xl font-bold uppercase ${data.thesis.rating === 'BUY' ? 'text-green-700' : data.thesis.rating === 'SELL' ? 'text-red-700' : 'text-yellow-700'}`}>{data.thesis.rating}</div>
+                <div className="text-sm font-sans">Target: ${data.thesis.targetPriceBase}</div>
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div className="col-span-1 md:col-span-2">
+                <h2 className="text-2xl font-bold mb-4 leading-tight">{data.researchMemo.headline}</h2>
+                <p className="text-lg leading-relaxed mb-6 font-light">{data.researchMemo.executiveSummary}</p>
+                
+                <h3 className="text-sm font-bold uppercase border-b border-black mb-3 pb-1">Investment Thesis</h3>
+                <p className="text-sm leading-relaxed mb-6 text-justify">{data.researchMemo.valuationThesis}</p>
+
+                <h3 className="text-sm font-bold uppercase border-b border-black mb-3 pb-1">Key Drivers</h3>
+                <ul className="list-disc pl-5 space-y-1 mb-6 text-sm">
+                    {data.researchMemo.keyDrivers.map((d, i) => <li key={i}>{d}</li>)}
+                </ul>
+
+                <h3 className="text-sm font-bold uppercase border-b border-black mb-3 pb-1">Macro Outlook</h3>
+                <p className="text-sm leading-relaxed mb-6 text-justify">{data.researchMemo.macroOutlook}</p>
+            </div>
+            <div className="col-span-1 space-y-6">
+                <div className="bg-slate-100 p-4 border border-slate-300">
+                    <div className="text-xs font-sans font-bold uppercase text-slate-500 mb-2">Visual Insight</div>
+                    <div className="aspect-square bg-slate-200 flex items-center justify-center overflow-hidden relative">
+                        {imageUrl ? (
+                            <img src={imageUrl} alt="Generated Insight" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="text-center p-4 flex flex-col items-center">
+                                {generatingImg && <div className="w-4 h-4 border-2 border-slate-400 border-t-black rounded-full animate-spin mb-2"></div>}
+                                <div className="text-xs text-slate-400 mb-2">{generatingImg ? 'Generating...' : 'Waiting for Model...'}</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-xs font-bold uppercase border-b border-gray-300 mb-2 pb-1">Market Data</h3>
+                    <div className="space-y-2 text-xs font-sans">
+                        <div className="flex justify-between border-b border-slate-200 pb-1"><span>Price</span> <span>${data.profile.price}</span></div>
+                        <div className="flex justify-between border-b border-slate-200 pb-1"><span>Market Cap</span> <span>{data.profile.marketCap}</span></div>
+                        <div className="flex justify-between border-b border-slate-200 pb-1"><span>Ent. Value</span> <span>${data.dcf.enterpriseValue.toLocaleString()}M</span></div>
+                        <div className="flex justify-between border-b border-slate-200 pb-1"><span>52w High/Low</span> <span>Data Unavailable</span></div>
+                    </div>
+                </div>
+
+                <div>
+                     <h3 className="text-xs font-bold uppercase border-b border-gray-300 mb-2 pb-1">Risk Factors</h3>
+                     <ul className="text-[10px] space-y-1 leading-tight text-slate-600">
+                         {data.profile.risks.slice(0, 5).map((r, i) => <li key={i}>• {r}</li>)}
+                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <div className="border-t border-black pt-4 mt-8 flex flex-col md:flex-row justify-between items-center text-[10px] text-slate-500 font-sans gap-2">
+            <div>Generated by Apex Capital AI | Automated Analyst Agent V3</div>
+            <div>{new Date().toLocaleDateString()}</div>
+        </div>
+    </div>
+  );
+}
+
+// --- New Alpha Components ---
+
+const SentimentLieDetector = ({ sentiments }: { sentiments: any[] }) => {
+    return (
+        <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={sentiments}>
+                     <defs>
+                        <linearGradient id="sentimentGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis dataKey="quarter" stroke="#64748b" tick={{fontSize: 10}} />
+                    <YAxis yAxisId="left" stroke="#10b981" tick={{fontSize: 10}} domain={[0, 100]} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#ef4444" tick={{fontSize: 10}} />
+                    <Tooltip 
+                        contentStyle={{ backgroundColor: '#020617', borderColor: '#0e7490', color: '#fff' }}
+                        itemStyle={{ fontSize: 10 }}
+                    />
+                    <Legend />
+                    <Area yAxisId="left" type="monotone" dataKey="sentimentScore" name="Confidence Score" stroke="#10b981" fill="url(#sentimentGrad)" />
+                    <Bar yAxisId="right" dataKey="hesitationWords" name="Hesitation Count" fill="#ef4444" barSize={20} radius={[4, 4, 0, 0]} />
+                </ComposedChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+const AlternativeDataCards = ({ data }: { data: any }) => {
+    return (
+        <div className="grid grid-cols-3 gap-4">
+             <div className="bg-slate-900/50 p-4 border border-slate-800 flex flex-col items-center text-center">
+                 <div className="text-[10px] text-slate-500 uppercase mb-2">Web Traffic (YoY)</div>
+                 <div className={`text-2xl font-mono font-bold ${data.webTrafficTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                     {data.webTrafficTrend > 0 ? '+' : ''}{data.webTrafficTrend}%
+                 </div>
+                 <Globe size={16} className="mt-2 text-slate-600" />
+             </div>
+             <div className="bg-slate-900/50 p-4 border border-slate-800 flex flex-col items-center text-center">
+                 <div className="text-[10px] text-slate-500 uppercase mb-2">App Downloads</div>
+                 <div className={`text-2xl font-mono font-bold ${data.appDownloadTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                     {data.appDownloadTrend > 0 ? '+' : ''}{data.appDownloadTrend}%
+                 </div>
+                 <Smartphone size={16} className="mt-2 text-slate-600" />
+             </div>
+             <div className="bg-slate-900/50 p-4 border border-slate-800 flex flex-col items-center text-center">
+                 <div className="text-[10px] text-slate-500 uppercase mb-2">Search Volume</div>
+                 <div className={`text-2xl font-mono font-bold ${data.searchVolumeTrend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                     {data.searchVolumeTrend > 0 ? '+' : ''}{data.searchVolumeTrend}%
+                 </div>
+                 <Eye size={16} className="mt-2 text-slate-600" />
+             </div>
+             <div className="col-span-3 bg-slate-900/30 border border-slate-800 p-2 flex items-center justify-between">
+                 <div className="text-xs text-slate-400 font-bold px-2">ALT SIGNAL:</div>
+                 <div className={`text-xs font-bold px-2 py-1 rounded ${data.verdict === 'BULLISH' ? 'bg-green-900/20 text-green-400' : data.verdict === 'BEARISH' ? 'bg-red-900/20 text-red-400' : 'bg-slate-800 text-slate-400'}`}>
+                    {data.verdict}
+                 </div>
+             </div>
+             <div className="col-span-3 text-[10px] text-slate-500 italic px-2">
+                 "{data.insight}"
+             </div>
+        </div>
+    )
+}
+
+const WhaleWatchTable = ({ ownership }: { ownership: any }) => {
+    return (
+        <div className="space-y-4">
+             <div className="flex items-center gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded">
+                 <div className="relative w-16 h-16 flex items-center justify-center">
+                     <Gauge size={32} className={ownership.crowdednessScore > 75 ? 'text-red-500' : 'text-green-500'} />
+                 </div>
+                 <div>
+                     <div className="text-xs text-slate-500 uppercase">Crowdedness Score</div>
+                     <div className="text-xl font-bold text-white">{ownership.crowdednessScore}/100</div>
+                     <div className="text-[10px] text-slate-400">{ownership.crowdednessScore > 75 ? 'Very Crowded (Low Liquidity Risk)' : 'Under-owned (Accumulation Phase)'}</div>
+                 </div>
+             </div>
+             
+             <div className="overflow-hidden border border-slate-800 rounded">
+                 <table className="w-full text-left text-xs font-mono">
+                     <thead className="bg-slate-900 text-slate-500">
+                         <tr>
+                             <th className="p-2">Holder</th>
+                             <th className="p-2 text-right">Position</th>
+                             <th className="p-2 text-right">Change</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-800">
+                         {ownership.topHolders.map((holder: any, i: number) => (
+                             <tr key={i} className="hover:bg-slate-800/50">
+                                 <td className="p-2 font-bold text-slate-300">{holder.name}</td>
+                                 <td className="p-2 text-right text-slate-400">{holder.shares}</td>
+                                 <td className={`p-2 text-right font-bold ${holder.change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                     {holder.change > 0 ? '+' : ''}{holder.change}%
+                                 </td>
+                             </tr>
+                         ))}
+                     </tbody>
+                 </table>
+             </div>
+             
+             <div className="flex justify-between items-center px-2">
+                 <div className="text-xs text-slate-500">Smart Money Flow</div>
+                 <div className={`text-xs font-bold px-2 py-1 rounded border ${
+                     ownership.smartMoneyFlow === 'INFLOW' ? 'border-green-900 text-green-400 bg-green-900/10' : 
+                     ownership.smartMoneyFlow === 'OUTFLOW' ? 'border-red-900 text-red-400 bg-red-900/10' : 
+                     'border-slate-800 text-slate-400'
+                 }`}>
+                     {ownership.smartMoneyFlow}
+                 </div>
+             </div>
+        </div>
+    )
+}
+
 const OpportunityGrid = ({ onSelect }: { onSelect: (ticker: string) => void }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {SUGGESTED_OPPORTUNITIES.map((opp) => (
@@ -624,7 +957,7 @@ const AlphaTerminal = ({ analysis }: { analysis: FullAnalysis }) => {
     "Analyze management compensation",
     "Identify key insider trading patterns",
     "Break down revenue by region",
-    "List top institutional shareholders"
+    "List top institutional holders"
   ];
 
   useEffect(() => {
@@ -727,463 +1060,6 @@ const AlphaTerminal = ({ analysis }: { analysis: FullAnalysis }) => {
   );
 };
 
-// --- New Financial Components ---
-
-const FinancialStatementTable = ({ statement }: { statement: Statement }) => {
-  const currentYear = new Date().getFullYear();
-  const historicalData = statement.rows[0]?.historical || [];
-  const projectedData = statement.rows[0]?.projected || [];
-
-  return (
-    <div className="overflow-x-auto border border-slate-800 rounded bg-slate-950/50 max-h-[600px] custom-scrollbar">
-      <table className="w-full text-xs font-mono text-left border-collapse min-w-max relative">
-          <thead className="sticky top-0 z-20">
-              <tr className="border-b border-slate-800 bg-slate-900 text-slate-400 uppercase tracking-wider shadow-lg">
-                  <th className="p-3 sticky left-0 z-30 bg-slate-900 border-r border-slate-800 shadow-[4px_0_8px_rgba(0,0,0,0.5)] min-w-[180px]">
-                    Metric
-                  </th>
-                  {historicalData.map((_, i) => {
-                    const year = currentYear - (historicalData.length - i);
-                    return (
-                      <th key={`h-${i}`} className="p-3 text-right min-w-[110px] text-slate-500 font-medium">
-                        {year}A
-                      </th>
-                    );
-                  })}
-                  {projectedData.map((_, i) => {
-                    const year = currentYear + i + 1;
-                    return (
-                      <th key={`p-${i}`} className="p-3 text-right min-w-[110px] text-cyan-400 font-bold">
-                        {year}E
-                      </th>
-                    );
-                  })}
-              </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/50">
-              {statement.rows.map((row, i) => (
-                  <tr key={i} className="hover:bg-cyan-900/10 transition-colors group">
-                      <td className="p-3 text-cyan-100 font-medium sticky left-0 z-10 bg-slate-900 border-r border-slate-800 shadow-[4px_0_8px_rgba(0,0,0,0.5)] group-hover:bg-[#162032] transition-colors whitespace-nowrap">
-                          {row.metric}
-                      </td>
-                      {row.historical.map((val, idx) => (
-                          <td key={`hv-${idx}`} className="p-3 text-right text-slate-400 whitespace-nowrap font-light tracking-tight">
-                              {val.toLocaleString()}
-                          </td>
-                      ))}
-                      {row.projected.map((val, idx) => (
-                          <td key={`pv-${idx}`} className="p-3 text-right text-cyan-300 whitespace-nowrap font-medium tracking-tight">
-                              {val.toLocaleString()}
-                          </td>
-                      ))}
-                  </tr>
-              ))}
-          </tbody>
-      </table>
-    </div>
-  );
-};
-
-const RatiosGrid = ({ ratios }: { ratios: FinancialRatios }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {Object.entries(ratios).map(([category, items]) => (
-      <div key={category} className="bg-slate-900/40 border border-slate-800 p-4 rounded">
-        <h4 className="text-cyan-400 uppercase tracking-widest text-xs font-bold mb-4 border-b border-slate-800 pb-2">{category}</h4>
-        <div className="space-y-3">
-          {items.map((ratio, idx) => (
-            <div key={idx} className="flex justify-between items-center">
-              <span className="text-slate-400 text-xs">{ratio.name}</span>
-              <span className="text-white font-mono text-sm font-bold">{ratio.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
-// --- Thesis Components ---
-
-const ScenarioBar = ({ thesis, currentPrice }: { thesis: InvestmentThesis, currentPrice: number }) => {
-  const min = Math.min(thesis.targetPriceBear, currentPrice) * 0.9;
-  const max = Math.max(thesis.targetPriceBull, currentPrice) * 1.1;
-  const range = max - min;
-  
-  const getPos = (val: number) => ((val - min) / range) * 100;
-
-  return (
-    <div className="relative h-20 mt-8 mb-4">
-      {/* Track */}
-      <div className="absolute top-1/2 left-0 right-0 h-2 bg-slate-800 rounded-full -translate-y-1/2"></div>
-      
-      {/* Range Bar */}
-      <div 
-        className="absolute top-1/2 h-2 bg-gradient-to-r from-red-900 via-blue-900 to-green-900 -translate-y-1/2 opacity-50"
-        style={{ left: `${getPos(thesis.targetPriceBear)}%`, right: `${100 - getPos(thesis.targetPriceBull)}%` }}
-      ></div>
-
-      {/* Markers */}
-      {[
-        { label: 'Bear', val: thesis.targetPriceBear, color: 'text-red-500', bg: 'bg-red-500' },
-        { label: 'Base', val: thesis.targetPriceBase, color: 'text-blue-400', bg: 'bg-blue-400' },
-        { label: 'Bull', val: thesis.targetPriceBull, color: 'text-green-500', bg: 'bg-green-500' },
-      ].map((m) => (
-        <div key={m.label} className="absolute top-1/2 -translate-x-1/2 flex flex-col items-center group" style={{ left: `${getPos(m.val)}%` }}>
-          <div className={`w-3 h-3 rounded-full ${m.bg} border-2 border-black shadow-[0_0_10px_currentColor] mb-2 z-10`}></div>
-          <div className={`text-xs font-bold ${m.color} -mt-8 opacity-0 group-hover:opacity-100 transition-opacity`}>{m.label}</div>
-          <div className={`text-xs font-mono ${m.color} mt-4`}>${m.val}</div>
-        </div>
-      ))}
-
-      {/* Current Price Marker */}
-      <div className="absolute top-1/2 -translate-x-1/2 flex flex-col items-center" style={{ left: `${getPos(currentPrice)}%` }}>
-        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white -translate-y-[12px] mb-1"></div>
-        <div className="text-xs font-bold text-white bg-slate-800 px-1 rounded border border-slate-600">NOW</div>
-      </div>
-    </div>
-  );
-};
-
-const ScoreBar = ({ score, max = 5, label, icon: Icon }: any) => (
-  <div className="mb-4">
-    <div className="flex justify-between mb-1">
-      <span className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase">
-        {Icon && <Icon size={12} />} {label}
-      </span>
-      <span className="text-xs text-cyan-400 font-mono">{score}/{max}</span>
-    </div>
-    <div className="flex gap-1">
-      {[...Array(max)].map((_, i) => (
-        <div 
-          key={i} 
-          className={`h-2 flex-1 rounded-sm transition-all ${i < score ? 'bg-cyan-500 shadow-[0_0_5px_#06b6d4]' : 'bg-slate-800'}`}
-        ></div>
-      ))}
-    </div>
-  </div>
-);
-
-const ReportScenarioChart = ({ thesis, current }: { thesis: InvestmentThesis, current: number }) => {
-   const max = Math.max(thesis.targetPriceBull, current) * 1.2;
-   const getWidth = (val: number) => `${(val / max) * 100}%`;
-   
-   return (
-     <div className="space-y-4 font-sans">
-        <div>
-           <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
-              <span>BEAR</span>
-              <span>${thesis.targetPriceBear}</span>
-           </div>
-           <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-red-500" style={{ width: getWidth(thesis.targetPriceBear) }}></div>
-           </div>
-        </div>
-        <div>
-           <div className="flex justify-between text-xs font-bold text-blue-600 mb-1">
-              <span>BASE</span>
-              <span>${thesis.targetPriceBase}</span>
-           </div>
-           <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600" style={{ width: getWidth(thesis.targetPriceBase) }}></div>
-           </div>
-        </div>
-        <div>
-           <div className="flex justify-between text-xs font-bold text-green-600 mb-1">
-              <span>BULL</span>
-              <span>${thesis.targetPriceBull}</span>
-           </div>
-           <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-green-600" style={{ width: getWidth(thesis.targetPriceBull) }}></div>
-           </div>
-        </div>
-     </div>
-   )
-}
-
-const ResearchReport = ({ data }: { data: FullAnalysis }) => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [loadingImage, setLoadingImage] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    const fetchImage = async () => {
-      if (!data.researchMemo.imagePrompt || imageUrl) return;
-      setLoadingImage(true);
-      const img = await generateInsightImage(data.researchMemo.imagePrompt);
-      setImageUrl(img);
-      setLoadingImage(false);
-    };
-    fetchImage();
-  }, [data.researchMemo.imagePrompt]);
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleSave = () => {
-    try {
-      const existingReports = JSON.parse(localStorage.getItem('apex_saved_reports') || '[]');
-      const reportToSave = {
-        id: `${data.profile.ticker}-${Date.now()}`,
-        timestamp: Date.now(),
-        ticker: data.profile.ticker,
-        data: data
-      };
-      
-      existingReports.push(reportToSave);
-      localStorage.setItem('apex_saved_reports', JSON.stringify(existingReports));
-      
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
-      console.error("Failed to save report", error);
-    }
-  };
-
-  return (
-    <div className="bg-white text-black p-8 rounded shadow-2xl font-sans max-w-5xl mx-auto my-8 print:my-0 print:shadow-none print:max-w-none animate-fade-in">
-        <style>
-            {`
-            @media print {
-                body * { visibility: hidden; }
-                .print-content, .print-content * { visibility: visible; }
-                .print-content { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; background: white; color: black; }
-                .no-print { display: none; }
-                .page-break { break-before: always; display: block; height: 0; }
-                .print-container { width: 100%; }
-            }
-            `}
-        </style>
-        
-        <div className="print-content print-container">
-            {/* --- PAGE 1 --- */}
-            {/* Header */}
-            <div className="flex justify-between items-start border-b-4 border-black pb-6 mb-8">
-                <div>
-                    <h1 className="text-4xl font-black uppercase tracking-tighter mb-1">{data.profile.ticker}</h1>
-                    <h2 className="text-xl text-gray-600 font-serif italic">{data.profile.name}</h2>
-                </div>
-                <div className="text-right">
-                    <div className="flex items-center gap-2 justify-end text-cyan-700 font-bold uppercase tracking-widest text-sm mb-2">
-                        <Zap size={16} /> Apex Capital AI Research
-                    </div>
-                    <div className="text-sm text-gray-500">{new Date().toLocaleDateString()}</div>
-                </div>
-            </div>
-
-            {/* Top Stats Row */}
-            <div className="flex gap-8 mb-8 bg-gray-100 p-4 rounded">
-                 <div className="flex-1">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Rating</div>
-                    <div className={`text-2xl font-black ${data.thesis.rating === 'BUY' ? 'text-green-700' : 'text-red-700'}`}>{data.thesis.rating}</div>
-                 </div>
-                 <div className="flex-1">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Target Price</div>
-                    <div className="text-2xl font-black text-blue-700">${data.dcf.sharePriceTarget}</div>
-                 </div>
-                 <div className="flex-1">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Current Price</div>
-                    <div className="text-2xl font-mono font-bold">${data.profile.price}</div>
-                 </div>
-                 <div className="flex-1">
-                    <div className="text-xs text-gray-500 uppercase font-bold">Upside</div>
-                    <div className="text-2xl font-bold">{data.dcf.upsideDownside.toFixed(1)}%</div>
-                 </div>
-            </div>
-
-            {/* Main Layout Page 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Left Column: Text */}
-                <div className="lg:col-span-2 space-y-8">
-                    <div>
-                        <h3 className="text-2xl font-serif font-bold mb-2 leading-tight">{data.researchMemo.headline}</h3>
-                        <p className="text-gray-700 leading-relaxed font-serif text-lg border-l-4 border-blue-500 pl-4">
-                            {data.researchMemo.executiveSummary}
-                        </p>
-                    </div>
-
-                    <div>
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-gray-500 border-b border-gray-300 pb-1 mb-3">Investment Thesis & Drivers</h4>
-                        <ul className="space-y-3">
-                            {data.researchMemo.keyDrivers.map((driver, i) => (
-                                <li key={i} className="flex gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center font-bold text-xs shrink-0">{i+1}</div>
-                                    <p className="text-gray-800 text-sm leading-relaxed">{driver}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-gray-500 border-b border-gray-300 pb-1 mb-3">Valuation Perspective</h4>
-                        <p className="text-gray-800 text-sm leading-relaxed columns-2 gap-8">
-                            {data.researchMemo.valuationThesis}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Right Column: Visuals & Data */}
-                <div className="space-y-6">
-                    {/* AI Image */}
-                    <div className="w-full aspect-video bg-gray-900 rounded overflow-hidden relative shadow-lg">
-                        {loadingImage ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-cyan-400 gap-2">
-                                <Sparkles size={24} className="animate-spin" />
-                                <span className="text-xs uppercase tracking-widest animate-pulse">Generating Visual...</span>
-                            </div>
-                        ) : imageUrl ? (
-                            <>
-                                <img src={imageUrl} alt="AI Generated Visualization" className="w-full h-full object-cover" />
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-                                    <div className="text-[10px] text-white/70 uppercase tracking-widest">AI Visualization: {data.profile.ticker} Future State</div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-700 text-xs">Image Unavailable</div>
-                        )}
-                    </div>
-
-                    {/* Mini Financials */}
-                    <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                        <h5 className="text-xs font-bold uppercase text-gray-500 mb-4">Financial Forecast</h5>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between border-b border-gray-200 pb-1">
-                                <span>Revenue (Next Yr)</span>
-                                <span className="font-bold">{data.incomeStatement.rows[0].projected[0].toLocaleString()} M</span>
-                            </div>
-                            <div className="flex justify-between border-b border-gray-200 pb-1">
-                                <span>EBITDA Margin</span>
-                                <span className="font-bold">{data.financialRatios.profitability.find(r => r.name.includes('EBITDA'))?.value}</span>
-                            </div>
-                            <div className="flex justify-between border-b border-gray-200 pb-1">
-                                <span>ROIC</span>
-                                <span className="font-bold">{data.financialRatios.efficiency.find(r => r.name === 'ROIC')?.value}</span>
-                            </div>
-                            <div className="flex justify-between pt-2">
-                                <span>Implied EV/EBITDA</span>
-                                <span className="font-bold text-blue-700">{data.lbo.entryMultiple}x</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Macro Note */}
-                    <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-500">
-                        <h5 className="text-xs font-bold uppercase text-blue-800 mb-2">Macro Sensitivity</h5>
-                        <p className="text-xs text-blue-900 leading-relaxed italic">
-                            "{data.researchMemo.macroOutlook}"
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* --- PAGE BREAK --- */}
-            <div className="page-break mt-12 pt-8 border-t-2 border-gray-100"></div>
-            
-            {/* --- PAGE 2 --- */}
-            <div className="mt-8">
-                 <div className="flex justify-between items-center mb-6 border-b border-gray-300 pb-2">
-                    <h3 className="text-xl font-bold uppercase tracking-widest text-gray-800">Deep Dive & Scenarios</h3>
-                    <span className="text-gray-400 text-sm font-mono">{data.profile.ticker} // PG 2</span>
-                 </div>
-
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                     {/* Scenario Analysis */}
-                     <div className="bg-gray-50 p-6 rounded border border-gray-200">
-                        <h4 className="text-sm font-bold uppercase text-gray-600 mb-4">Scenario Price Targets (12mo)</h4>
-                        <ReportScenarioChart thesis={data.thesis} current={data.profile.price} />
-                     </div>
-
-                     {/* Moat & Management */}
-                     <div className="space-y-6">
-                        <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-500">
-                            <h5 className="text-xs font-bold text-blue-800 uppercase mb-1">Strategic Moat ({data.thesis.moatScore}/5)</h5>
-                            <p className="text-sm text-blue-900">{data.thesis.moatSource}</p>
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded border-l-4 border-gray-500">
-                            <h5 className="text-xs font-bold text-gray-800 uppercase mb-1">Management Execution ({data.thesis.managementScore}/5)</h5>
-                            <p className="text-sm text-gray-700">{data.thesis.managementNotes}</p>
-                        </div>
-                     </div>
-                 </div>
-
-                 {/* Catalyst & Risks Row */}
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-                     <div>
-                        <h4 className="text-sm font-bold uppercase text-gray-500 border-b border-gray-300 pb-1 mb-3">Catalyst Watchlist</h4>
-                        <ul className="space-y-3">
-                           {data.thesis.catalysts.map((cat, i) => (
-                              <li key={i} className="flex justify-between items-start">
-                                 <div>
-                                    <div className="font-bold text-sm text-gray-800">{cat.event}</div>
-                                    <div className="text-xs text-gray-500">{cat.description}</div>
-                                 </div>
-                                 <span className="text-[10px] font-mono bg-gray-200 px-1 rounded">{cat.timing}</span>
-                              </li>
-                           ))}
-                        </ul>
-                     </div>
-                     <div>
-                        <h4 className="text-sm font-bold uppercase text-gray-500 border-b border-gray-300 pb-1 mb-3">Key Risks</h4>
-                        <ul className="list-disc pl-4 space-y-2 text-sm text-red-900/80">
-                           {data.profile.risks.slice(0, 4).map((r, i) => <li key={i}>{r}</li>)}
-                        </ul>
-                     </div>
-                 </div>
-                 
-                 {/* Financial Summary Table */}
-                 <div className="mt-8">
-                     <h4 className="text-sm font-bold uppercase text-gray-500 border-b border-gray-300 pb-1 mb-3">Financial Performance Summary</h4>
-                     <table className="w-full text-sm text-left border-collapse">
-                        <thead>
-                           <tr className="border-b-2 border-gray-800">
-                              <th className="py-2">Metric</th>
-                              {data.incomeStatement.rows[0].historical.slice(-2).map((_, i) => {
-                                 const year = new Date().getFullYear() - 2 + i;
-                                 return <th key={i} className="py-2 text-right">{year}A</th>
-                              })}
-                              {data.incomeStatement.rows[0].projected.slice(0, 2).map((_, i) => {
-                                 const year = new Date().getFullYear() + 1 + i;
-                                 return <th key={i} className="py-2 text-right text-blue-700">{year}E</th>
-                              })}
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {data.incomeStatement.rows.slice(0, 3).map((row, i) => (
-                              <tr key={i} className="border-b border-gray-200">
-                                 <td className="py-2 font-bold text-gray-700">{row.metric}</td>
-                                 {row.historical.slice(-2).map((val, idx) => (
-                                    <td key={idx} className="py-2 text-right">{val.toLocaleString()}</td>
-                                 ))}
-                                 {row.projected.slice(0, 2).map((val, idx) => (
-                                    <td key={idx} className="py-2 text-right font-bold text-blue-900">{val.toLocaleString()}</td>
-                                 ))}
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
-                 </div>
-            </div>
-
-            {/* Footer */}
-            <div className="mt-12 pt-8 border-t border-gray-200 text-[10px] text-gray-400 text-center">
-                <p>CONFIDENTIAL - PROPRIETARY AI RESEARCH GENERATED BY APEX CAPITAL AI.</p>
-                <p>This report is for educational purposes only and does not constitute financial advice.</p>
-            </div>
-        </div>
-        
-        <div className="mt-8 flex justify-end gap-4 no-print">
-            <button onClick={handleSave} disabled={saved} className={`flex items-center gap-2 px-6 py-3 rounded transition-colors font-bold uppercase tracking-widest ${saved ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                <Save size={18} /> {saved ? 'Saved' : 'Save Report'}
-            </button>
-            <button onClick={handlePrint} className="flex items-center gap-2 bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors font-bold uppercase tracking-widest">
-                <Printer size={18} /> Print / Save PDF
-            </button>
-        </div>
-    </div>
-  );
-}
-
 // --- Main Component ---
 
 export default function MissionControl() {
@@ -1191,7 +1067,7 @@ export default function MissionControl() {
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [data, setData] = useState<FullAnalysis | null>(null);
   const [logs, setLogs] = useState<AgentLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'THESIS' | 'FINANCIALS' | 'VALUATION' | 'AI_RISK' | 'COMPS' | 'DEEP_DIVE' | 'REPORT'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'THESIS' | 'FINANCIALS' | 'VALUATION' | 'AI_RISK' | 'COMPS' | 'ALPHA' | 'DEEP_DIVE' | 'REPORT'>('OVERVIEW');
   const [financialView, setFinancialView] = useState<'INCOME' | 'BALANCE' | 'CASH' | 'RATIOS'>('INCOME');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showTerminal, setShowTerminal] = useState(false);
@@ -1395,7 +1271,7 @@ export default function MissionControl() {
 
           {/* Navigation Tabs */}
           <div className="flex gap-2 border-b border-cyan-900/50 overflow-x-auto">
-             {['OVERVIEW', 'THESIS', 'AI_RISK', 'FINANCIALS', 'VALUATION', 'COMPS', 'DEEP_DIVE', 'REPORT'].map((tab) => (
+             {['OVERVIEW', 'THESIS', 'AI_RISK', 'FINANCIALS', 'VALUATION', 'COMPS', 'ALPHA', 'DEEP_DIVE', 'REPORT'].map((tab) => (
                <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -1490,7 +1366,7 @@ export default function MissionControl() {
                      </div>
                   </Panel>
 
-                  {/* NEW: BULL VS BEAR BATTLE CARD */}
+                  {/* BULL VS BEAR BATTLE CARD */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Panel title="Bull Case" icon={ArrowUpRight} className="border-t-4 border-t-green-500">
                           <ul className="space-y-3 mt-2">
@@ -1531,6 +1407,33 @@ export default function MissionControl() {
                     </div>
                   </Panel>
                 </>
+              )}
+
+              {activeTab === 'ALPHA' && (
+                  <div className="space-y-6">
+                      <Panel title="Earnings Call 'Lie Detector'" icon={BarChart4}>
+                          <p className="text-xs text-slate-400 mb-4 italic border-l-2 border-cyan-500 pl-2">
+                              Linguistic analysis of the last 4 quarters detecting confidence vs. hesitation.
+                          </p>
+                          <SentimentLieDetector sentiments={data.hedgeFundAlpha.earningsSentiment} />
+                          <div className="grid grid-cols-2 gap-4 mt-6">
+                              {data.hedgeFundAlpha.earningsSentiment.slice(-2).map((q, i) => (
+                                  <div key={i} className="bg-slate-900/30 p-2 border border-slate-800 rounded">
+                                      <div className="text-[10px] font-bold text-slate-500 mb-1">{q.quarter} Shift</div>
+                                      <div className="text-xs text-white">"{q.keyPhraseShift}"</div>
+                                  </div>
+                              ))}
+                          </div>
+                      </Panel>
+
+                      <Panel title="Alternative Data Signals (Digital Footprint)" icon={Activity}>
+                          <AlternativeDataCards data={data.hedgeFundAlpha.alternativeData} />
+                      </Panel>
+
+                      <Panel title="Whale Watching (Institutional Flow)" icon={Users}>
+                          <WhaleWatchTable ownership={data.hedgeFundAlpha.institutionalOwnership} />
+                      </Panel>
+                  </div>
               )}
 
               {activeTab === 'AI_RISK' && (
@@ -1574,7 +1477,7 @@ export default function MissionControl() {
                         </div>
                      </Panel>
                      
-                     {/* NEW: TIME TO IMPACT TIMELINE */}
+                     {/* TIME TO IMPACT TIMELINE */}
                      <Panel title="Time-to-Impact Forecast" icon={Clock}>
                          <div className="relative pt-8 pb-4 px-4">
                              <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2 z-0"></div>
@@ -1658,7 +1561,7 @@ export default function MissionControl() {
                                 </div>
                                 <FinancialStatementTable statement={data.incomeStatement} />
                                 
-                                {/* NEW: MARGIN ANALYSIS FILLER */}
+                                {/* MARGIN ANALYSIS FILLER */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800 mt-4">
                                      <div>
                                         <h4 className="text-xs text-slate-400 uppercase font-bold mb-4">Margin Mastery</h4>
@@ -1701,7 +1604,7 @@ export default function MissionControl() {
                                 </div>
                                 <FinancialStatementTable statement={data.balanceSheet} />
                                 
-                                {/* NEW: CAPITAL STRUCTURE FILLER */}
+                                {/* CAPITAL STRUCTURE FILLER */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800 mt-4">
                                     <div className="h-48">
                                         <h4 className="text-xs text-slate-400 uppercase font-bold mb-2">Capital Structure</h4>
@@ -1789,13 +1692,13 @@ export default function MissionControl() {
                         </div>
                     </Panel>
                     
-                    {/* NEW: SENSITIVITY MATRIX */}
+                    {/* SENSITIVITY MATRIX */}
                     <Panel title="Sensitivity Matrix (WACC vs. Growth)" icon={Target}>
                         <div className="mb-2 text-xs text-slate-400">Impact on Share Price</div>
                         <SensitivityMatrix baseWacc={data.dcf.wacc} baseGrowth={data.dcf.terminalGrowthRate} basePrice={data.dcf.sharePriceTarget} />
                     </Panel>
 
-                     {/* NEW: RV SCATTER PLOT */}
+                     {/* RV SCATTER PLOT */}
                      <Panel title="Relative Valuation (Growth vs. Multiple)" icon={ScatterIcon}>
                         <div className="h-80">
                             <CompsScatterPlot comps={data.valuationComps} />
@@ -1834,7 +1737,7 @@ export default function MissionControl() {
                           </div>
                       </Panel>
 
-                      {/* NEW: RELATIVE VALUATION CHART FILLER */}
+                      {/* RELATIVE VALUATION CHART FILLER */}
                       <Panel title="Relative Valuation Benchmarking" icon={BarChart3}>
                            <div className="h-64 w-full">
                                {(() => {
@@ -1959,7 +1862,7 @@ export default function MissionControl() {
                          </div>
                      </Panel>
 
-                     {/* NEW: INSIDER ACTIVITY */}
+                     {/* INSIDER ACTIVITY */}
                      <Panel title="Insider Activity (Recent)" icon={User}>
                         <InsiderTrades transactions={data.insiderActivity} />
                      </Panel>

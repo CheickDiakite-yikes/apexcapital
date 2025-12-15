@@ -142,6 +142,42 @@ export interface ResearchMemo {
   imagePrompt: string; // Prompt for image generation
 }
 
+export interface QuarterlySentiment {
+  quarter: string; // e.g. "Q3 23"
+  sentimentScore: number; // 0-100
+  hesitationWords: number; // Count of words like "challenge", "uncertain"
+  confidenceWords: number; // Count of words like "strong", "robust"
+  keyPhraseShift: string; // e.g. "From 'Strong Demand' to 'Cautious Outlook'"
+}
+
+export interface AlternativeData {
+  webTrafficTrend: number; // % change YoY
+  appDownloadTrend: number; // % change YoY
+  searchVolumeTrend: number; // % change YoY
+  verdict: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  insight: string;
+}
+
+export interface InstitutionalHolder {
+  name: string;
+  shares: string;
+  change: number; // % change in position
+  date: string;
+}
+
+export interface InstitutionalOwnership {
+  totalOwnership: number; // %
+  crowdednessScore: number; // 0-100 (Higher is more crowded)
+  topHolders: InstitutionalHolder[];
+  smartMoneyFlow: 'INFLOW' | 'OUTFLOW' | 'NEUTRAL';
+}
+
+export interface HedgeFundAlpha {
+  earningsSentiment: QuarterlySentiment[];
+  alternativeData: AlternativeData;
+  institutionalOwnership: InstitutionalOwnership;
+}
+
 export interface AgentLog {
   id: string;
   agent: 'SCOUT' | 'ANALYST' | 'ASSOCIATE' | 'VP' | 'PM';
@@ -172,5 +208,6 @@ export interface FullAnalysis {
   earningsQuality: EarningsQuality;
   insiderActivity: InsiderTransaction[];
   researchMemo: ResearchMemo;
+  hedgeFundAlpha: HedgeFundAlpha;
   sources?: string[];
 }

@@ -1,44 +1,45 @@
-# Apex Capital AI | Mission Control Terminal
 
-**Apex Capital AI** is an open-source, AI-native alternative to traditional Bloomberg Terminals, specifically architected for institutional equity research and autonomous investment banking workflows.
+# Apex Capital AI | Sovereign Intelligence Terminal
 
-![Apex Capital AI Terminal](https://img.shields.io/badge/Status-Operational-06b6d4?style=for-the-badge)
-![AI Model](https://img.shields.io/badge/Engine-Gemini_3_Pro-8b5cf6?style=for-the-badge)
-![Security](https://img.shields.io/badge/Clearance-Level_5-green?style=for-the-badge)
+**Apex Capital AI** is a world-class, AI-native alternative to the Bloomberg Terminal. It is not merely a chatbot; it is an autonomous financial operating system designed to reconstruct institutional-grade financial models, detect forensic accounting anomalies, and formulate high-conviction investment theses using a multi-agent cognitive architecture.
+
+![Status](https://img.shields.io/badge/Status-Operational-06b6d4?style=for-the-badge)
+![Engine](https://img.shields.io/badge/Core-Gemini_3_Pro-8b5cf6?style=for-the-badge)
+![Clearance](https://img.shields.io/badge/Clearance-Level_5-green?style=for-the-badge)
 
 ## 🌌 The Vision
-Modern finance moves at the speed of algorithms, yet analysts are often bogged down by manual data entry and static modeling. Apex Capital AI transitions the research process from a "search-and-summarize" workflow to an "autonomous reasoning" engine.
+Wall Street is shifting from "Information Arbitrage" to "Cognitive Arbitrage." Apex Capital AI replaces the static analyst workflow with a dynamic, sovereign intelligence that doesn't just read data—it *reasons* about it.
+
+## 🧠 Cognitive Architecture (The "Brain")
+The terminal operates via a coordinated swarm of specialized sub-agents:
+- **🕵️ SCOUT (Intelligence):** Deep-web harvesting, EDGAR filing extraction, and supply chain mapping.
+- **📊 ANALYST (Reconstruction):** Builds full 15+ line-item 3-statement models (Income, Balance, Cash Flow) from raw unstructured data.
+- **🛡️ ASSOCIATE (Forensics):** Hunts for earnings manipulation (Accruals vs. Cash Flow) and structural risks.
+- **🏛️ PM (The "Edge"):** Synthesizes "Variant Perception"—identifying exactly where the market consensus is wrong.
 
 ## 🛠 Features
 
-### 1. Multi-Agent Reasoning Pipeline
-The terminal utilizes a hierarchy of specialized sub-agents to process any ticker or URL:
-- **🕵️ SCOUT:** Performs deep-web harvesting and regulatory filing extraction via Google Search Grounding.
-- **📊 ANALYST:** Normalizes financials and executes 3-statement modeling.
-- **🛡️ ASSOCIATE:** Performs forensic accounting, moat analysis, and risk assessment.
-- **👔 VP:** Stress-tests LBO feasibility and relative valuation comps.
-- **🏛️ PM (Portfolio Manager):** Synthesizes the "Variant Perception" and final Investment Thesis.
+### 1. Full-Stack Financial Reconstruction
+Unlike basic AI summarizers, Apex Capital AI reconstructs granular financial statements:
+- **Income Statement:** Rev, COGS, R&D, SG&A, EBITDA, EBIT, Interest, Tax, Net Income.
+- **Balance Sheet:** Detailed working capital, PP&E, Goodwill, Debt tranches, and Equity.
+- **Cash Flow:** Bridge from Net Income to Unlevered Free Cash Flow.
 
-### 2. Forensic & Alternative Alpha
-- **Earnings "Lie Detector":** Quantifies management sentiment shift by analyzing "hesitation words" vs. "confidence words" across quarters.
-- **Vibecode Sensitivity:** Evaluates the risk of a legacy business being "culturally obsoleted" by rapid AI shifts.
-- **Digital Footprint:** Integrates alternative data proxies like web traffic, app downloads, and search trends.
-- **Whale Watching:** Tracks institutional crowdedness and "Smart Money" flow.
+### 2. Alpha Generation Modules
+- **Earnings "Lie Detector":** NLP analysis of earnings calls to detect CEO hesitation/uncertainty.
+- **Vibecode Sensitivity Matrix:** Quantifies a company's risk of "Cultural Obsolescence" due to AI shifts.
+- **Whale Watch:** Institutional flow analysis (Smart Money vs. Passive Indexing).
 
-### 3. Institutional Modeling Suite
-- **Interactive DCF:** Full Perpetuity Growth model with built-in sensitivity matrices (WACC vs. g).
-- **LBO Analysis:** Feasibility scanner for private equity scenarios including IRR and MoC projections.
-- **Supply Chain Mapping:** Visualizes the network graph of suppliers and customers to identify systemic risks.
+### 3. Generative Valuation
+- **Interactive DCF:** 5-Year projection with terminal value sensitivity.
+- **LBO Feasibility:** Private equity buy-out simulator with IRR and MoC targets.
 
-### 4. Generative Reporting
-- **Insight Synthesis:** Automatically generates professional-grade Equity Research Memos.
-- **Visual Metaphors:** Uses Gemini's multimodal capabilities to generate AI-driven visual representations of a company's strategic future.
-
-## 🚀 Technical Architecture
-- **Engine:** Google Gemini 3 Pro (Reasoning) & Gemini 2.5 Flash (Scouting & Image Gen).
-- **Frontend:** React 19 + Tailwind CSS (Cyberpunk UI/UX).
-- **Data:** Real-time search grounding and simulated market ticks.
+## 🚀 Technology Stack
+- **Reasoning:** Google Gemini 3 Pro (Complex Financial Logic).
+- **Vision:** Gemini 2.5 Flash (Chart interpretation & Image Gen).
+- **Interface:** React 19 + Tailwind CSS (Sci-Fi Mission Control UI).
+- **Data:** Real-time Search Grounding (Google Search Tool).
 
 ---
 
-*Disclaimer: This project is for educational and research purposes only. The models generated are synthetic and should not be construed as professional financial advice.*
+*Disclaimer: This system is a simulation of advanced financial intelligence. No output constitutes financial advice.*

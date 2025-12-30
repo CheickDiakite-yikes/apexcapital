@@ -7,6 +7,12 @@ export enum AnalysisStatus {
   ERROR = 'ERROR'
 }
 
+export interface StationQuota {
+  searchCount: number;
+  lastResetMonth: string; // YYYY-MM
+  stationId: string;
+}
+
 export interface FinancialRow {
   metric: string;
   historical: number[]; // Last 3 years

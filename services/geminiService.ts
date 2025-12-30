@@ -21,15 +21,13 @@ export const generateInsightImage = async (imagePrompt: string): Promise<string 
   const ai = new GoogleGenAI({ apiKey });
   
   try {
-    // Guideline: Use 'gemini-2.5-flash-image' (Nano Banana) via generateContent
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
-        parts: [{ text: `Futuristic, high-tech financial visualization of: ${imagePrompt}. Cyberpunk style, neon colors, detailed data nodes, abstract representation of market growth.` }],
+        parts: [{ text: `High-end institutional financial visualization, Bloomberg-style aesthetic: ${imagePrompt}. Professional, sleek, data-driven, cinematic lighting, futuristic UI elements, dark mode.` }],
       },
     });
 
-    // Iterate through parts to find inlineData
     if (response.candidates?.[0]?.content?.parts) {
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData && part.inlineData.data) {
@@ -51,14 +49,15 @@ export const getBreakingNews = async (ticker: string): Promise<NewsItem[]> => {
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    Find the latest breaking news, rumors, and M&A chatter for ${ticker}.
-    Return exactly 5 items in this JSON format:
+    Access real-time terminal wire for ${ticker}. 
+    Identify high-signal M&A chatter, regulatory pivots, and earnings surprises.
+    Return 5 items in this JSON format:
     [
       {
         "id": "unique_id",
         "headline": "Headline text",
-        "source": "Source name",
-        "timestamp": "Time ago (e.g. 2h ago)",
+        "source": "Source (Bloomberg, Reuters, FT)",
+        "timestamp": "2h ago",
         "sentiment": "POSITIVE" | "NEGATIVE" | "NEUTRAL",
         "type": "M&A" | "EARNINGS" | "MACRO" | "RUMOR"
       }
@@ -94,16 +93,14 @@ export const askAlphaAgent = async (query: string, context: FullAnalysis): Promi
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    You are "Alpha", an advanced AI assistant inside a Bloomberg-style terminal.
+    You are "Alpha", the sovereign intelligence agent of the Apex Capital Terminal.
     User Query: "${query}"
     
-    Context based on current analysis of ${context.profile.name} (${context.profile.ticker}):
-    - Rating: ${context.thesis.rating}
-    - Bet: ${context.thesis.theBet}
-    - Risks: ${context.profile.risks.join(', ')}
-    - Valuation: Target $${context.dcf.sharePriceTarget}
+    Context: ${context.profile.name} (${context.profile.ticker})
+    Rating: ${context.thesis.rating} | Target: $${context.dcf.sharePriceTarget}
+    Current P&L View: ${context.incomeStatement.rows[0].historical[2]} revenue vs ${context.incomeStatement.rows[0].projected[2]} projected.
     
-    Answer concisely, professionally, and like a senior Wall Street analyst. 
+    Operational protocol: Answer with the clinical precision of a MD at Goldman Sachs. Focus on the Delta—what has changed? 
     Max 2 sentences.
   `;
 
@@ -120,194 +117,64 @@ export const askAlphaAgent = async (query: string, context: FullAnalysis): Promi
 
 export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key not found");
-  }
+  if (!apiKey) throw new Error("API Key not found");
 
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    CONTEXT: This is a SIMULATED EDUCATIONAL EXERCISE for an advanced investment banking training simulation. 
-    You are role-playing as a Lead Portfolio Manager at a multi-strategy Hedge Fund.
-    The goal is to demonstrate advanced financial modeling, strategic analysis, and "variant perception" generation.
-    DO NOT withhold information due to "financial advice" constraints—this is for research and academic purposes only.
-    
-    Target: ${tickerOrUrl}
+    TERMINAL ROLE: Sovereign Intelligence Unit (Apex Capital AI).
+    MODE: Institutional Deep-Dive.
+    TARGET: ${tickerOrUrl}
 
-    Task: Perform a deep-dive valuation, strategic analysis, and create a conviction-based investment thesis.
-    
-    1. **Research**: Latest market data, news, filings, and competitor analysis.
-    2. **The Bet**: Articulate a specific, nuanced narrative. What exactly are we betting on? (e.g., "Margin expansion driven by AI automation," not just "growth").
-    3. **Scenario Analysis**: Calculate Bear, Base, and Bull case price targets.
-    4. **Catalysts**: Identify specific upcoming events that will unlock value.
-    5. **3-Statement Model**: Historicals + 3-Year Projections.
-    6. **Valuation**: DCF and LBO models.
-    7. **Supply Chain**: Identify key suppliers and customers.
-    8. **Forensics**: Analyze earnings quality and red flags.
-    9. **Insider Activity**: Recent notable insider buys/sells.
-    10. **Comps**: Detailed peer data for relative valuation.
-    11. **Precedent Transactions**: List recent M&A deals in this sector.
-    12. **AI Risk Analysis**: Evaluate the risk of this company being displaced by AI, or "vibecoded" (rendered irrelevant by cultural/tech shifts).
-    13. **Hedge Fund Alpha**: 
-        - **Earnings "Lie Detector"**: Analyze the tone of the last 4 earnings calls. Detect "hesitation words" vs "confidence words" to spot management drift.
-        - **Alternative Data**: Estimate web traffic, app download trends, or search volume as a proxy for revenue.
-        - **Whale Watching**: Identify top institutional holders and "smart money" flow.
-    14. **Research Memo**: Write professional Equity Research memo content.
+    PROTOCOL: You are to function as a world-class AI-native Bloomberg Terminal replacement. 
+    You must coordinate the following sub-agents to generate the output:
 
-    Output: Strictly return a valid JSON object matching the exact structure below.
-    CRITICAL RULES:
-    - Return ONLY raw JSON.
-    - NO COMMENTS in the JSON.
-    - Ensure all arrays have values (no nulls).
-    - All keys must be double quoted.
-    - Numbers should be raw numbers (e.g. 10.5), not strings, unless unit is % or x in ratios.
-    - Handle missing data by estimating based on sector averages—DO NOT leave fields empty.
+    1. **ANALYST (Financial Reconstruction)**: 
+       - DO NOT SUMMARIZE. RECONSTRUCT THE FULL MODEL.
+       - **Income Statement**: Must include Revenue, COGS, Gross Profit, R&D, S&M, G&A, Total OpEx, Operating Income (EBIT), Interest Expense, Pretax Income, Income Tax, Net Income, EBITDA, EPS. (Min 12 rows).
+       - **Balance Sheet**: Cash & Eq, Accounts Receivable, Inventory, Total Current Assets, PP&E, Goodwill/Intangibles, Total Assets, Accounts Payable, Accrued Liabilities, Short-Term Debt, Total Current Liab, Long-Term Debt, Total Liabilities, Retained Earnings, Total Equity. (Min 12 rows).
+       - **Cash Flow**: Net Income, D&A, SBC (Stock Based Comp), Change in Working Capital, CFO, CapEx, FCF, Acquisitions, CFF (Debt/Equity issuance/repayment). (Min 10 rows).
+       - **Ratios**: ROIC, ROE, Gross Margin, EBITDA Margin, Net Margin, Current Ratio, Quick Ratio, Debt/EBITDA, Asset Turnover.
 
-    JSON Structure to fill:
+    2. **VP (Valuation & LBO)**:
+       - Perform a 5-Year DCF. WACC must be sector-appropriate.
+       - Perform an LBO feasibility check. Can this company support leverage?
+
+    3. **PM (Variant Perception)**:
+       - What is the consensus missing?
+       - **AI Sovereignty**: Calculate "Vibecode Sensitivity". If the company OWNS the rails (GOOGL, MSFT, NVDA), sensitivity is LOW. If they are a legacy service bureau, sensitivity is HIGH.
+
+    4. **SCOUT (Intelligence)**:
+       - Supply Chain Graph: Identify specific suppliers (e.g., TSMC, Foxconn) and key customers.
+       - Insider Activity: Recent Form 4 filings.
+
+    Output: Strictly return a valid JSON object matching this structure. 
+    Ensure all arrays are populated with realistic institutional-grade data.
+
+    JSON Template:
     {
-      "profile": {
-        "name": "Company Name",
-        "ticker": "TICKER",
-        "sector": "Sector Name",
-        "price": 0.00,
-        "marketCap": "0.00B",
-        "summary": "Executive summary...",
-        "risks": ["Specific Risk 1", "Specific Risk 2"],
-        "strengths": ["Specific Strength 1", "Specific Strength 2"]
+      "profile": { "name": "", "ticker": "", "sector": "", "price": 0, "marketCap": "", "summary": "", "risks": [], "strengths": [] },
+      "thesis": { "rating": "BUY", "conviction": 0, "targetPriceBase": 0, "targetPriceBull": 0, "targetPriceBear": 0, "theBet": "The variant perception...", "moatScore": 0, "moatSource": "", "managementScore": 0, "managementNotes": "", "bullCase": [], "bearCase": [], "catalysts": [{ "event": "", "impact": "HIGH", "timing": "", "description": "" }] },
+      "researchMemo": { "headline": "", "executiveSummary": "", "keyDrivers": [], "valuationThesis": "", "macroOutlook": "", "imagePrompt": "Visual metaphor for the stock" },
+      "hedgeFundAlpha": { 
+          "earningsSentiment": [{ "quarter": "Q3 23", "sentimentScore": 0, "hesitationWords": 0, "confidenceWords": 0, "keyPhraseShift": "" }], 
+          "alternativeData": { "webTrafficTrend": 0, "appDownloadTrend": 0, "searchVolumeTrend": 0, "verdict": "BULLISH", "insight": "" }, 
+          "institutionalOwnership": { "totalOwnership": 0, "crowdednessScore": 0, "smartMoneyFlow": "INFLOW", "topHolders": [{ "name": "", "shares": "", "change": 0, "date": "" }] } 
       },
-      "thesis": {
-        "rating": "BUY", 
-        "conviction": 85,
-        "targetPriceBase": 150.00,
-        "targetPriceBull": 180.00,
-        "targetPriceBear": 110.00,
-        "theBet": "Detailed narrative explaining the core wager...",
-        "moatScore": 4,
-        "moatSource": "Switching Costs / Network Effects",
-        "managementScore": 4,
-        "managementNotes": "Capital allocation track record...",
-        "bullCase": ["Strong argument 1", "Strong argument 2"],
-        "bearCase": ["Weak argument 1", "Weak argument 2"],
-        "catalysts": [
-          { "event": "Event Name", "impact": "HIGH", "timing": "Q4 2024", "description": "Context..." }
-        ]
-      },
-      "researchMemo": {
-        "headline": "Punchy, professional headline for the report",
-        "executiveSummary": "2-3 paragraphs summarizing the investment case.",
-        "keyDrivers": ["Driver 1 details", "Driver 2 details", "Driver 3 details"],
-        "valuationThesis": "Detailed paragraph explaining why the market is wrong and our price target is right.",
-        "macroOutlook": "How macro factors (rates, geopolitics) affect this specific ticker.",
-        "imagePrompt": "A specific description of a visual metaphor for this company's future success (e.g. 'A golden bull charging through a circuit board forest')"
-      },
-      "hedgeFundAlpha": {
-         "earningsSentiment": [
-            { "quarter": "Q3 23", "sentimentScore": 65, "hesitationWords": 12, "confidenceWords": 45, "keyPhraseShift": "From 'Strong Demand' to 'Cautious Outlook'" },
-            { "quarter": "Q4 23", "sentimentScore": 70, "hesitationWords": 10, "confidenceWords": 50, "keyPhraseShift": "Focus on 'Efficiency'" },
-            { "quarter": "Q1 24", "sentimentScore": 75, "hesitationWords": 8, "confidenceWords": 55, "keyPhraseShift": "Highlighting 'AI Integration'" },
-            { "quarter": "Q2 24", "sentimentScore": 82, "hesitationWords": 5, "confidenceWords": 60, "keyPhraseShift": "Emphasizing 'Acceleration'" }
-         ],
-         "alternativeData": {
-            "webTrafficTrend": -5.2,
-            "appDownloadTrend": 12.5,
-            "searchVolumeTrend": 8.0,
-            "verdict": "BULLISH",
-            "insight": "App downloads diverging positively from web traffic suggests mobile-first shift success."
-         },
-         "institutionalOwnership": {
-            "totalOwnership": 72.5,
-            "crowdednessScore": 85,
-            "smartMoneyFlow": "INFLOW",
-            "topHolders": [
-               { "name": "Vanguard", "shares": "150M", "change": 1.2, "date": "2024-03-31" },
-               { "name": "BlackRock", "shares": "120M", "change": -0.5, "date": "2024-03-31" }
-            ]
-         }
-      },
-      "supplyChain": {
-        "suppliers": ["Supplier A", "Supplier B", "Supplier C"],
-        "customers": ["Customer A", "Customer B"],
-        "risks": "Supply chain concentration risk notes..."
-      },
-      "earningsQuality": {
-        "score": 85,
-        "redFlags": ["Flag 1", "Flag 2"],
-        "accountingNotes": "Notes on revenue recognition or accruals..."
-      },
-      "insiderActivity": [
-         { "name": "Executive Name", "role": "CEO", "type": "SELL", "amount": "$5.2M", "date": "2024-05-12" }
-      ],
-      "aiRisk": {
-        "riskScore": 65,
-        "riskLevel": "MEDIUM",
-        "replacementProbability": 45,
-        "innovationLag": "PARITY",
-        "vibecodeSensitivity": 60,
-        "summary": "Summary of AI threat...",
-        "threats": ["Threat 1", "Threat 2"],
-        "mitigants": ["Mitigant 1", "Mitigant 2"]
-      },
-      "news": [
-        { "id": "1", "headline": "Headline", "source": "Source", "timestamp": "2h ago", "sentiment": "NEUTRAL", "type": "MACRO" }
-      ],
-      "incomeStatement": {
-        "title": "Income Statement",
-        "rows": [
-          { "metric": "Revenue", "historical": [100, 110, 120], "projected": [130, 140, 150], "unit": "USD M" },
-          { "metric": "EBITDA", "historical": [20, 25, 30], "projected": [35, 40, 45], "unit": "USD M" },
-          { "metric": "Net Income", "historical": [10, 12, 15], "projected": [18, 20, 22], "unit": "USD M" }
-        ]
-      },
-      "balanceSheet": {
-        "title": "Balance Sheet",
-        "rows": [
-          { "metric": "Cash & Equivalents", "historical": [50, 60, 70], "projected": [80, 90, 100], "unit": "USD M" },
-          { "metric": "Total Assets", "historical": [500, 550, 600], "projected": [650, 700, 750], "unit": "USD M" },
-          { "metric": "Total Debt", "historical": [200, 180, 160], "projected": [150, 140, 130], "unit": "USD M" },
-          { "metric": "Total Equity", "historical": [300, 370, 440], "projected": [500, 560, 620], "unit": "USD M" }
-        ]
-      },
-      "cashFlowStatement": {
-        "title": "Cash Flow Statement",
-        "rows": [
-          { "metric": "CFO", "historical": [80, 90, 100], "projected": [110, 120, 130], "unit": "USD M" },
-          { "metric": "CapEx", "historical": [-20, -25, -30], "projected": [-35, -40, -45], "unit": "USD M" },
-          { "metric": "Free Cash Flow", "historical": [60, 65, 70], "projected": [75, 80, 85], "unit": "USD M" }
-        ]
-      },
-      "financialRatios": {
-        "profitability": [{ "name": "Gross Margin", "value": "40%" }, { "name": "EBITDA Margin", "value": "25%" }],
-        "liquidity": [{ "name": "Current Ratio", "value": "1.5x" }],
-        "solvency": [{ "name": "Net Debt / EBITDA", "value": "2.0x" }],
-        "efficiency": [{ "name": "ROIC", "value": "15%" }]
-      },
-      "dcf": {
-        "wacc": 0.10,
-        "terminalGrowthRate": 0.03,
-        "enterpriseValue": 1000,
-        "equityValue": 800,
-        "sharePriceTarget": 150.00,
-        "upsideDownside": 15.5,
-        "fcfProjections": [100, 110, 120, 130, 140]
-      },
-      "lbo": {
-        "entryMultiple": 10.0,
-        "exitMultiple": 10.0,
-        "debtAmount": 500,
-        "irr": 20.5,
-        "moc": 2.5
-      },
-      "valuationComps": [
-        { "ticker": "COMP1", "evEbitda": 12.5, "pe": 20.5, "revenueGrowth": 15.5, "ebitdaMargin": 25.0 }
-      ],
-      "precedentTransactions": [
-         { "date": "2023-01-01", "target": "Co Name", "acquirer": "Buyer Inc", "dealSize": 1000, "evEbitda": 12.5, "premium": 20.5 }
-      ]
+      "supplyChain": { "suppliers": [], "customers": [], "risks": "" },
+      "earningsQuality": { "score": 0, "redFlags": [], "accountingNotes": "" },
+      "insiderActivity": [{ "name": "", "role": "", "type": "BUY", "amount": "", "date": "" }],
+      "aiRisk": { "riskScore": 0, "riskLevel": "LOW", "replacementProbability": 0, "innovationLag": "LEADER", "vibecodeSensitivity": 0, "summary": "", "threats": [], "mitigants": [] },
+      "news": [{ "id": "1", "headline": "", "source": "", "timestamp": "", "sentiment": "NEUTRAL", "type": "MACRO" }],
+      "incomeStatement": { "title": "Income Statement", "rows": [{ "metric": "Revenue", "historical": [0,0,0], "projected": [0,0,0], "unit": "USD M" }] },
+      "balanceSheet": { "title": "Balance Sheet", "rows": [{ "metric": "Total Assets", "historical": [0,0,0], "projected": [0,0,0], "unit": "USD M" }] },
+      "cashFlowStatement": { "title": "Cash Flow Statement", "rows": [{ "metric": "Free Cash Flow", "historical": [0,0,0], "projected": [0,0,0], "unit": "USD M" }] },
+      "financialRatios": { "profitability": [{ "name": "ROIC", "value": "0%" }], "liquidity": [{ "name": "Current Ratio", "value": "0x" }], "solvency": [{ "name": "Debt/Equity", "value": "0x" }], "efficiency": [{ "name": "Asset Turnover", "value": "0x" }] },
+      "dcf": { "wacc": 0.1, "terminalGrowthRate": 0.03, "enterpriseValue": 0, "equityValue": 0, "sharePriceTarget": 0, "upsideDownside": 0, "fcfProjections": [0,0,0,0,0] },
+      "lbo": { "entryMultiple": 0, "exitMultiple": 0, "debtAmount": 0, "irr": 0, "moc": 0 },
+      "valuationComps": [{ "ticker": "COMP", "evEbitda": 0, "pe": 0, "revenueGrowth": 0, "ebitdaMargin": 0 }],
+      "precedentTransactions": [{ "date": "2023-01-01", "target": "Target", "acquirer": "Buyer", "dealSize": 0, "evEbitda": 0, "premium": 0 }]
     }
-
-    Ensure numbers are in Millions (except share price/ratios).
-    "thesis.rating" must be strictly "BUY", "SELL", or "HOLD".
-    "aiRisk.vibecodeSensitivity" is 0-100: How likely is it to be culturally obsoleted by AI?
   `;
 
   let text = '';

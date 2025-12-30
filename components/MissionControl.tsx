@@ -1,9 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4 } from 'lucide-react';
+import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert } from 'lucide-react';
 import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage } from '../services/geminiService';
-import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio } from '../types';
+import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart } from 'recharts';
+
+// --- QUOTA CONSTANTS ---
+const SEARCH_LIMIT = 10;
+const QUOTA_STORAGE_KEY = 'apex_station_metadata';
 
 // --- MOCK DATA FOR DASHBOARD ---
 
@@ -52,6 +56,36 @@ const downloadCSV = (data: any[], filename: string) => {
   link.click();
   document.body.removeChild(link);
 };
+
+const getStationQuota = (): StationQuota => {
+    const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    
+    if (saved) {
+        const parsed: StationQuota = JSON.parse(saved);
+        if (parsed.lastResetMonth !== currentMonth) {
+            return {
+                ...parsed,
+                searchCount: 0,
+                lastResetMonth: currentMonth
+            };
+        }
+        return parsed;
+    }
+
+    // New User Fingerprint
+    const stationId = `APX-${Math.floor(Math.random() * 999)}-${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(65 + Math.floor(Math.random() * 26))}`;
+    return {
+        searchCount: 0,
+        lastResetMonth: currentMonth,
+        stationId
+    };
+}
+
+const saveStationQuota = (quota: StationQuota) => {
+    localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(quota));
+}
 
 // --- CUSTOM HOOKS ---
 
@@ -351,12 +385,8 @@ const SensitivityMatrix = ({ baseWacc, baseGrowth, basePrice }: { baseWacc: numb
 
     // Simple sensitivity logic: Price roughly inverse to WACC, proportional to Growth
     const calculatePrice = (w: number, g: number) => {
-        // This is a simplified sensitivity proxy for visualization 
-        // Real DCF requires recalculating the whole model, but this mimics the sensitivity delta
-        const waccDelta = (baseWacc - w) * 100; // e.g., 10% -> 9% = +1
+        const waccDelta = (baseWacc - w) * 100;
         const growthDelta = (g - baseGrowth) * 100;
-        
-        // Arbitrary sensitivity factors for the visual
         const percentChange = (waccDelta * 15) + (growthDelta * 10); 
         return basePrice * (1 + percentChange / 100);
     };
@@ -380,7 +410,6 @@ const SensitivityMatrix = ({ baseWacc, baseGrowth, basePrice }: { baseWacc: numb
                                  const price = calculatePrice(w + baseWacc, g + baseGrowth);
                                  const isBase = w === 0 && g === 0;
                                  const diff = (price - basePrice) / basePrice;
-                                 // Color scale logic
                                  const colorClass = isBase ? 'bg-cyan-900 text-white border-2 border-cyan-400' : 
                                                     diff > 0.1 ? 'bg-green-900/30 text-green-400' :
                                                     diff > 0 ? 'bg-green-900/10 text-green-200' :
@@ -502,28 +531,24 @@ const ScenarioBar = ({ thesis, currentPrice }: { thesis: InvestmentThesis, curre
     <div className="relative h-12 w-full mt-6 mb-2">
       <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2 rounded"></div>
       
-      {/* Bear */}
       <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBear)}%` }}>
          <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-black z-10"></div>
          <div className="mt-2 text-[10px] text-red-500 font-bold">${thesis.targetPriceBear}</div>
          <div className="text-[9px] text-slate-500 uppercase">Bear</div>
       </div>
 
-      {/* Base */}
       <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBase)}%` }}>
          <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-black z-10"></div>
          <div className="mt-2 text-[10px] text-blue-500 font-bold">${thesis.targetPriceBase}</div>
          <div className="text-[9px] text-slate-500 uppercase">Base</div>
       </div>
 
-      {/* Bull */}
       <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${getPos(thesis.targetPriceBull)}%` }}>
          <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-black z-10"></div>
          <div className="mt-2 text-[10px] text-green-500 font-bold">${thesis.targetPriceBull}</div>
          <div className="text-[9px] text-slate-500 uppercase">Bull</div>
       </div>
 
-      {/* Current Price */}
       <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-20" style={{ left: `${getPos(currentPrice)}%` }}>
          <div className="w-4 h-4 bg-white rotate-45 border-2 border-cyan-500 shadow-[0_0_10px_rgba(255,255,255,0.5)]"></div>
          <div className="mb-4 text-xs text-white font-bold bg-slate-900 px-1 rounded border border-slate-700">${currentPrice}</div>
@@ -535,7 +560,6 @@ const ScenarioBar = ({ thesis, currentPrice }: { thesis: InvestmentThesis, curre
 const FinancialStatementTable = ({ statement }: { statement: Statement }) => {
     if (!statement || !statement.rows || statement.rows.length === 0) return null;
     
-    // Assume last 3 historical, next 3 projected.
     const currentYear = new Date().getFullYear();
     const histLen = statement.rows[0].historical.length;
     const historicalYears = statement.rows[0].historical.map((_, i) => currentYear - (histLen - i));
@@ -597,7 +621,6 @@ const ResearchReport = ({ data }: { data: FullAnalysis }) => {
   const [generatingImg, setGeneratingImg] = useState(false);
 
   useEffect(() => {
-     // Trigger image generation only if prompt exists and we haven't generated yet
      if (data.researchMemo.imagePrompt && !imageUrl && !generatingImg) {
          setGeneratingImg(true);
          generateInsightImage(data.researchMemo.imagePrompt)
@@ -606,11 +629,10 @@ const ResearchReport = ({ data }: { data: FullAnalysis }) => {
             })
             .finally(() => setGeneratingImg(false));
      }
-  }, [data.researchMemo.imagePrompt]); // Only re-run if prompt changes
+  }, [data.researchMemo.imagePrompt]);
 
   return (
     <div className="max-w-4xl mx-auto bg-white text-black font-serif p-8 md:p-12 shadow-2xl relative overflow-hidden min-h-screen">
-        {/* Watermark */}
         <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
             <div className="text-6xl md:text-9xl font-bold uppercase -rotate-45">Confidential</div>
         </div>
@@ -684,7 +706,7 @@ const ResearchReport = ({ data }: { data: FullAnalysis }) => {
   );
 }
 
-// --- New Alpha Components ---
+// --- Alpha Components ---
 
 const SentimentLieDetector = ({ sentiments }: { sentiments: any[] }) => {
     return (
@@ -877,7 +899,6 @@ const NetworkGraph = ({ supplyChain }: { supplyChain: any }) => {
        </div>
        
        <div className="flex justify-between items-center w-full max-w-2xl z-10">
-          {/* Suppliers */}
           <div className="space-y-4">
              {supplyChain.suppliers.slice(0, 3).map((s: string, i: number) => (
                 <div key={i} className="flex items-center gap-2">
@@ -887,7 +908,6 @@ const NetworkGraph = ({ supplyChain }: { supplyChain: any }) => {
              ))}
           </div>
           
-          {/* Central Node */}
           <div className="relative">
              <div className="w-16 h-16 rounded-full border-2 border-cyan-500 bg-cyan-900/20 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)]">
                 <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
@@ -895,7 +915,6 @@ const NetworkGraph = ({ supplyChain }: { supplyChain: any }) => {
              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-cyan-400 font-bold tracking-widest">TARGET</div>
           </div>
           
-          {/* Customers */}
           <div className="space-y-4">
              {supplyChain.customers.slice(0, 3).map((c: string, i: number) => (
                 <div key={i} className="flex items-center gap-2">
@@ -1072,8 +1091,8 @@ export default function MissionControl() {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showTerminal, setShowTerminal] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [quota, setQuota] = useState<StationQuota>(getStationQuota());
   
-  // Use the market simulation hook
   const portfolioData = useMarketSimulation(PORTFOLIO_DATA_INIT);
 
   const addLog = (agent: AgentLog['agent'], message: string) => {
@@ -1081,6 +1100,13 @@ export default function MissionControl() {
   };
 
   const executeAnalysis = async (ticker: string) => {
+    // Quota Enforcement
+    if (quota.searchCount >= SEARCH_LIMIT) {
+        setErrorMsg(`STATION QUOTA EXCEEDED. Research Cycles Reset: ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString()}`);
+        setStatus(AnalysisStatus.ERROR);
+        return;
+    }
+
     setStatus(AnalysisStatus.SEARCHING);
     setLogs([]);
     setData(null);
@@ -1089,7 +1115,6 @@ export default function MissionControl() {
     setShowTerminal(false);
     setInput(ticker);
 
-    // Simulation of agents working before/during the API call
     addLog('SCOUT', `Initializing deep-scan protocol for target: ${ticker.toUpperCase()}...`);
     
     setTimeout(() => addLog('SCOUT', 'Accessing global market databases & EDGAR filings...'), 800);
@@ -1098,6 +1123,11 @@ export default function MissionControl() {
     try {
       const result = await analyzeCompany(ticker);
       
+      // Update Quota on Success
+      const updatedQuota = { ...quota, searchCount: quota.searchCount + 1 };
+      setQuota(updatedQuota);
+      saveStationQuota(updatedQuota);
+
       addLog('ANALYST', 'Raw financial data ingested. Normalizing accounting policies...');
       setTimeout(() => addLog('ASSOCIATE', 'Reconciling Balance Sheet and Cash Flow statements...'), 500);
       setTimeout(() => addLog('PM', 'Formulating Bull/Bear scenarios and investment thesis...'), 1200);
@@ -1107,7 +1137,6 @@ export default function MissionControl() {
       setTimeout(() => {
         setData(result);
         setStatus(AnalysisStatus.COMPLETE);
-        // Terminal stays closed by default now until requested via floating agent
       }, 3500); 
 
     } catch (err: any) {
@@ -1127,23 +1156,15 @@ export default function MissionControl() {
     if (!data) return;
 
     let csvContent = `Financial Data Export - ${data.profile.ticker}\nGenerated by Apex Capital AI\n\n`;
-
     const processStatement = (statement: Statement) => {
        csvContent += `${statement.title.toUpperCase()}\n`;
-       
        const currentYear = new Date().getFullYear();
        const histLen = statement.rows[0]?.historical.length || 0;
        const projLen = statement.rows[0]?.projected.length || 0;
-       
        let headerRow = "Metric,Unit";
-       for(let i=0; i<histLen; i++) {
-           headerRow += `,${currentYear - (histLen - i)}A`;
-       }
-       for(let i=0; i<projLen; i++) {
-           headerRow += `,${currentYear + 1 + i}E`;
-       }
+       for(let i=0; i<histLen; i++) headerRow += `,${currentYear - (histLen - i)}A`;
+       for(let i=0; i<projLen; i++) headerRow += `,${currentYear + 1 + i}E`;
        csvContent += headerRow + "\n";
-
        statement.rows.forEach(row => {
            let line = `"${row.metric}","${row.unit}"`;
            row.historical.forEach(val => line += `,${val}`);
@@ -1156,13 +1177,9 @@ export default function MissionControl() {
     processStatement(data.incomeStatement);
     processStatement(data.balanceSheet);
     processStatement(data.cashFlowStatement);
-
-    csvContent += "FINANCIAL RATIOS\n";
-    csvContent += "Category,Metric,Value\n";
+    csvContent += "FINANCIAL RATIOS\nCategory,Metric,Value\n";
     Object.entries(data.financialRatios).forEach(([category, ratios]) => {
-        (ratios as Ratio[]).forEach(r => {
-            csvContent += `"${category.toUpperCase()}","${r.name}","${r.value}"\n`;
-        });
+        (ratios as Ratio[]).forEach(r => csvContent += `"${category.toUpperCase()}","${r.name}","${r.value}"\n`);
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1178,12 +1195,10 @@ export default function MissionControl() {
   return (
     <div className="min-h-screen cyber-grid bg-slate-950 text-slate-200 p-4 md:p-8 pt-12 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 relative pb-32">
       
-      {/* Global Ticker Tape */}
       <div className="fixed top-0 left-0 right-0 z-50">
          <TickerTape />
       </div>
 
-      {/* Top Bar */}
       <header className="flex justify-between items-center mb-8 border-b border-cyan-900/50 pb-4 mt-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-cyan-500/10 border border-cyan-400 flex items-center justify-center">
@@ -1191,7 +1206,7 @@ export default function MissionControl() {
           </div>
           <div>
             <h1 className="text-2xl font-bold uppercase tracking-widest text-white">Apex Capital <span className="text-cyan-400">AI</span></h1>
-            <p className="text-xs text-cyan-600 font-mono tracking-wider">AUTONOMOUS BANKING UNIT v3.0</p>
+            <p className="text-xs text-cyan-600 font-mono tracking-wider">STATION: {quota.stationId} // v3.0</p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
@@ -1203,7 +1218,6 @@ export default function MissionControl() {
         </div>
       </header>
 
-      {/* Input Area */}
       <div className="max-w-4xl mx-auto mb-8">
         <form onSubmit={handleSearch} className="relative group">
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-600 rounded opacity-20 blur transition duration-500 group-hover:opacity-40"></div>
@@ -1213,25 +1227,53 @@ export default function MissionControl() {
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="ENTER TICKER (e.g. AAPL) OR URL TO INITIATE DEEP RESEARCH..." 
-              className="w-full bg-transparent border-none text-white p-4 focus:ring-0 font-mono placeholder:text-slate-600"
+              disabled={quota.searchCount >= SEARCH_LIMIT}
+              placeholder={quota.searchCount >= SEARCH_LIMIT ? "SYSTEM QUOTA EXCEEDED - CONTACT SALES" : "ENTER TICKER (e.g. AAPL) OR URL TO INITIATE DEEP RESEARCH..."} 
+              className="w-full bg-transparent border-none text-white p-4 focus:ring-0 font-mono placeholder:text-slate-600 disabled:cursor-not-allowed"
             />
             <button 
               type="submit" 
-              disabled={status === AnalysisStatus.SEARCHING}
-              className="bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-400 px-8 py-4 border-l border-cyan-800 transition-colors uppercase tracking-wider font-bold flex items-center gap-2 disabled:opacity-50"
+              disabled={status === AnalysisStatus.SEARCHING || quota.searchCount >= SEARCH_LIMIT}
+              className={`px-8 py-4 border-l border-cyan-800 transition-colors uppercase tracking-wider font-bold flex items-center gap-2 disabled:opacity-50 ${
+                  quota.searchCount >= SEARCH_LIMIT ? 'bg-red-900/20 text-red-500 border-red-900' : 'bg-cyan-900/30 hover:bg-cyan-800/50 text-cyan-400'
+              }`}
             >
-               {status === AnalysisStatus.SEARCHING ? 'Processing' : 'Initiate'} <Zap size={16} />
+               {status === AnalysisStatus.SEARCHING ? 'Processing' : quota.searchCount >= SEARCH_LIMIT ? 'Quota Hit' : 'Initiate'} <Zap size={16} />
             </button>
           </div>
         </form>
+        
+        {/* QUOTA RESOURCE BAR */}
+        <div className="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+             <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest whitespace-nowrap">Monthly Credits</div>
+                <div className="flex gap-1 flex-1 md:w-64">
+                    {Array.from({ length: SEARCH_LIMIT }).map((_, i) => (
+                        <div 
+                            key={i} 
+                            className={`h-1.5 flex-1 rounded-sm transition-all duration-500 ${
+                                i < quota.searchCount 
+                                ? 'bg-slate-800' 
+                                : quota.searchCount >= 7 ? 'bg-amber-500 animate-pulse' : 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]'
+                            }`}
+                        />
+                    ))}
+                </div>
+                <div className={`text-[10px] font-mono font-bold ${quota.searchCount >= 8 ? 'text-amber-500' : 'text-cyan-500'}`}>
+                    {SEARCH_LIMIT - quota.searchCount} / {SEARCH_LIMIT} REMAINING
+                </div>
+             </div>
+             
+             {quota.searchCount >= SEARCH_LIMIT && (
+                 <div className="flex items-center gap-2 text-[10px] font-bold text-red-400 animate-pulse uppercase tracking-widest">
+                     <ShieldAlert size={12} /> Resource Depleted // Upgrade Required
+                 </div>
+             )}
+        </div>
       </div>
 
-      {/* IDLE STATE DASHBOARD */}
       {status === AnalysisStatus.IDLE && (
          <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
-            
-            {/* Top: Opportunities */}
             <div className="w-full">
                <Panel title="AI Scout // Market Opportunities" icon={Target}>
                   <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
@@ -1241,15 +1283,12 @@ export default function MissionControl() {
                   <OpportunityGrid onSelect={executeAnalysis} />
                </Panel>
             </div>
-
-            {/* Bottom: Portfolio */}
             <div className="w-full">
                <PortfolioOverview data={portfolioData} />
             </div>
          </div>
       )}
 
-      {/* Main Content Area */}
       {status === AnalysisStatus.SEARCHING && (
         <div className="max-w-4xl mx-auto h-[60vh]">
            <Panel title="Agent Activity Log" className="h-full border-cyan-500/30">
@@ -1260,8 +1299,6 @@ export default function MissionControl() {
 
       {status === AnalysisStatus.COMPLETE && data && (
         <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-20">
-          
-          {/* HUD Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard label="Live Price" value={data.profile.price} subValue={`${data.profile.marketCap} Mkt Cap`} trend="neutral" isLivePrice={true} />
             <MetricCard label="Implied Upside" value={`${data.dcf.upsideDownside > 0 ? '+' : ''}${data.dcf.upsideDownside.toFixed(1)}%`} subValue={`Target: $${data.dcf.sharePriceTarget.toFixed(2)}`} trend={data.dcf.upsideDownside > 0 ? 'up' : 'down'} />
@@ -1269,7 +1306,6 @@ export default function MissionControl() {
             <MetricCard label="Thesis" value={data.thesis.rating} subValue={`${data.thesis.conviction}% Conviction`} trend={data.thesis.rating === 'BUY' ? 'up' : data.thesis.rating === 'SELL' ? 'down' : 'neutral'} />
           </div>
 
-          {/* Navigation Tabs */}
           <div className="flex gap-2 border-b border-cyan-900/50 overflow-x-auto">
              {['OVERVIEW', 'THESIS', 'AI_RISK', 'FINANCIALS', 'VALUATION', 'COMPS', 'ALPHA', 'DEEP_DIVE', 'REPORT'].map((tab) => (
                <button 
@@ -1287,19 +1323,14 @@ export default function MissionControl() {
              ))}
           </div>
 
-          {/* Tab Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            
-            {/* REPORT TAB TAKES FULL WIDTH */}
             {activeTab === 'REPORT' ? (
                 <div className="col-span-3">
                     <ResearchReport data={data} />
                 </div>
             ) : (
             <>
-            {/* LEFT COLUMN (2/3) */}
             <div className="lg:col-span-2 space-y-6">
-              
               {activeTab === 'OVERVIEW' && (
                 <>
                    <Panel title="Executive Summary" icon={Globe}>
@@ -1319,14 +1350,11 @@ export default function MissionControl() {
                           </div>
                       </div>
                    </Panel>
-
                    <Panel title="Performance Forecast" icon={TrendingUp}>
                       <div className="h-96">
                         <FinancialChart data={data.incomeStatement.rows.filter(r => r.metric.includes('Revenue') || r.metric.includes('EBITDA'))} title="Rev vs EBITDA" />
                       </div>
                    </Panel>
-
-                    {/* Intelligence Sources moved here for Overview to balance layout */}
                    {data.sources && data.sources.length > 0 && (
                         <Panel title="Intelligence Sources" icon={LinkIcon}>
                             <div className="flex flex-wrap gap-2">
@@ -1345,8 +1373,6 @@ export default function MissionControl() {
                             </div>
                         </Panel>
                    )}
-
-                   {/* News Wire moved to Main Column for Overview Only to balance height */}
                    <Panel title="The Wire (Latest Intel)" icon={Newspaper}>
                       <NewsWire news={data.news} />
                    </Panel>
@@ -1365,8 +1391,6 @@ export default function MissionControl() {
                         <span>Upside: {((data.thesis.targetPriceBull / data.profile.price - 1) * 100).toFixed(1)}% / Downside: {((data.thesis.targetPriceBear / data.profile.price - 1) * 100).toFixed(1)}%</span>
                      </div>
                   </Panel>
-
-                  {/* BULL VS BEAR BATTLE CARD */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Panel title="Bull Case" icon={ArrowUpRight} className="border-t-4 border-t-green-500">
                           <ul className="space-y-3 mt-2">
@@ -1375,7 +1399,7 @@ export default function MissionControl() {
                                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1 shrink-0"></div>
                                       {arg}
                                   </li>
-                              )) || <li className="text-xs text-slate-500 italic">Generating arguments...</li>}
+                              ))}
                           </ul>
                       </Panel>
                       <Panel title="Bear Case" icon={ArrowDownRight} className="border-t-4 border-t-red-500">
@@ -1385,11 +1409,10 @@ export default function MissionControl() {
                                       <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1 shrink-0"></div>
                                       {arg}
                                   </li>
-                              )) || <li className="text-xs text-slate-500 italic">Generating arguments...</li>}
+                              ))}
                           </ul>
                       </Panel>
                   </div>
-
                   <Panel title="Catalyst Radar" icon={Calendar}>
                     <div className="space-y-6 py-2">
                        {data.thesis.catalysts.map((cat, i) => (
@@ -1416,20 +1439,10 @@ export default function MissionControl() {
                               Linguistic analysis of the last 4 quarters detecting confidence vs. hesitation.
                           </p>
                           <SentimentLieDetector sentiments={data.hedgeFundAlpha.earningsSentiment} />
-                          <div className="grid grid-cols-2 gap-4 mt-6">
-                              {data.hedgeFundAlpha.earningsSentiment.slice(-2).map((q, i) => (
-                                  <div key={i} className="bg-slate-900/30 p-2 border border-slate-800 rounded">
-                                      <div className="text-[10px] font-bold text-slate-500 mb-1">{q.quarter} Shift</div>
-                                      <div className="text-xs text-white">"{q.keyPhraseShift}"</div>
-                                  </div>
-                              ))}
-                          </div>
                       </Panel>
-
                       <Panel title="Alternative Data Signals (Digital Footprint)" icon={Activity}>
                           <AlternativeDataCards data={data.hedgeFundAlpha.alternativeData} />
                       </Panel>
-
                       <Panel title="Whale Watching (Institutional Flow)" icon={Users}>
                           <WhaleWatchTable ownership={data.hedgeFundAlpha.institutionalOwnership} />
                       </Panel>
@@ -1440,9 +1453,7 @@ export default function MissionControl() {
                   <div className="space-y-6">
                      <Panel title="AI Displacement Risk Matrix" icon={BrainCircuit} className="border-l-4 border-l-purple-500">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                            <div className="h-64">
-                               <AIRadarChart risk={data.aiRisk} />
-                            </div>
+                            <div className="h-64"><AIRadarChart risk={data.aiRisk} /></div>
                             <div className="space-y-4">
                                 <div className="bg-slate-900/50 p-4 border border-purple-900/30">
                                     <div className="flex justify-between items-center mb-2">
@@ -1454,52 +1465,22 @@ export default function MissionControl() {
                                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                                         <div className={`h-full ${data.aiRisk.vibecodeSensitivity > 70 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${data.aiRisk.vibecodeSensitivity}%` }}></div>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-2 italic">
-                                        Probability of business model irrelevance due to sudden AI behavior shifts (e.g. "The StackOverflow Effect").
-                                    </p>
                                 </div>
-                                
                                 <div className="flex justify-between items-center p-3 border-b border-slate-800">
                                    <span className="text-xs text-slate-400">Innovation Lag</span>
                                    <span className={`text-sm font-bold ${data.aiRisk.innovationLag === 'LEADER' ? 'text-green-400' : data.aiRisk.innovationLag === 'LAGGARD' ? 'text-red-400' : 'text-yellow-400'}`}>
                                       {data.aiRisk.innovationLag}
                                    </span>
                                 </div>
-                                <div className="flex justify-between items-center p-3">
-                                   <span className="text-xs text-slate-400">Replacement Prob.</span>
-                                   <span className="text-sm font-bold text-purple-400">{data.aiRisk.replacementProbability}%</span>
-                                </div>
                             </div>
                         </div>
-                        <div className="mt-6 p-4 bg-purple-900/10 border border-purple-900/30 rounded">
-                            <h4 className="text-xs font-bold text-purple-400 uppercase mb-2">Assessment Summary</h4>
-                            <p className="text-sm text-slate-300 leading-relaxed">{data.aiRisk.summary}</p>
-                        </div>
                      </Panel>
-                     
-                     {/* TIME TO IMPACT TIMELINE */}
-                     <Panel title="Time-to-Impact Forecast" icon={Clock}>
-                         <div className="relative pt-8 pb-4 px-4">
-                             <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2 z-0"></div>
-                             <div className="flex justify-between relative z-10">
-                                 {['Immediate (<12m)', 'Near Term (1-3y)', 'Long Term (5y+)'].map((period, i) => (
-                                     <div key={i} className="flex flex-col items-center">
-                                         <div className={`w-4 h-4 rounded-full border-2 bg-slate-950 ${i === 1 ? 'border-purple-500 scale-125' : 'border-slate-600'}`}></div>
-                                         <div className={`text-[10px] mt-2 uppercase font-bold ${i === 1 ? 'text-purple-400' : 'text-slate-500'}`}>{period}</div>
-                                         {i === 1 && <div className="text-[10px] text-slate-400 mt-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">Peak Disruption</div>}
-                                     </div>
-                                 ))}
-                             </div>
-                         </div>
-                     </Panel>
-
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Panel title="Threat Vectors" icon={AlertTriangle}>
                             <ul className="space-y-2">
                                 {data.aiRisk.threats.map((threat, i) => (
                                     <li key={i} className="flex items-start gap-2 text-xs text-red-200 bg-red-950/30 p-2 rounded border border-red-900/20">
-                                        <AlertTriangle size={12} className="shrink-0 mt-0.5 text-red-500" />
-                                        {threat}
+                                        <AlertTriangle size={12} className="shrink-0 mt-0.5 text-red-500" />{threat}
                                     </li>
                                 ))}
                             </ul>
@@ -1508,8 +1489,7 @@ export default function MissionControl() {
                             <ul className="space-y-2">
                                 {data.aiRisk.mitigants.map((mitigant, i) => (
                                     <li key={i} className="flex items-start gap-2 text-xs text-green-200 bg-green-950/30 p-2 rounded border border-green-900/20">
-                                        <Shield size={12} className="shrink-0 mt-0.5 text-green-500" />
-                                        {mitigant}
+                                        <Shield size={12} className="shrink-0 mt-0.5 text-green-500" />{mitigant}
                                     </li>
                                 ))}
                             </ul>
@@ -1520,7 +1500,6 @@ export default function MissionControl() {
 
               {activeTab === 'FINANCIALS' && (
                  <Panel title="3-Statement Analysis & Ratios" icon={BarChart3}>
-                    {/* Financials Sub-Navigation */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                         <div className="flex gap-1 p-1 bg-slate-900/50 rounded-lg border border-slate-800 inline-flex">
                         {[
@@ -1533,130 +1512,37 @@ export default function MissionControl() {
                                 key={view.id}
                                 onClick={() => setFinancialView(view.id as any)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-all ${
-                                    financialView === view.id 
-                                    ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-700/50' 
-                                    : 'text-slate-500 hover:text-slate-300'
+                                    financialView === view.id ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-700/50' : 'text-slate-500 hover:text-slate-300'
                                 }`}
                             >
-                                <view.icon size={12} />
-                                {view.label}
+                                <view.icon size={12} /> {view.label}
                             </button>
                         ))}
                         </div>
-
-                        <button 
-                            onClick={downloadAllFinancials}
-                            className="flex items-center gap-2 px-4 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-400 border border-cyan-800 hover:border-cyan-600 rounded text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-cyan-900/20 group"
-                        >
-                            <Download size={14} className="group-hover:scale-110 transition-transform" /> 
-                            <span>Export All Data</span>
+                        <button onClick={downloadAllFinancials} className="flex items-center gap-2 px-4 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-400 border border-cyan-800 rounded text-xs font-bold uppercase transition-all shadow-lg shadow-cyan-900/20 group">
+                            <Download size={14} className="group-hover:scale-110 transition-transform" /> Export All Data
                         </button>
                     </div>
-
                     <div className="animate-fade-in">
                         {financialView === 'INCOME' && (
                             <div className="space-y-8">
-                                <div className="h-96 w-full mb-8">
-                                    <FinancialChart data={data.incomeStatement.rows.slice(0, 2)} title="Income Trend" />
-                                </div>
+                                <div className="h-96 w-full mb-8"><FinancialChart data={data.incomeStatement.rows.slice(0, 2)} title="Income Trend" /></div>
                                 <FinancialStatementTable statement={data.incomeStatement} />
-                                
-                                {/* MARGIN ANALYSIS FILLER */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800 mt-4">
-                                     <div>
-                                        <h4 className="text-xs text-slate-400 uppercase font-bold mb-4">Margin Mastery</h4>
-                                        <div className="h-40 w-full">
-                                            <ResponsiveContainer>
-                                                <AreaChart data={[
-                                                    { name: 'Y1', gm: 40, ebitda: 20, net: 10 },
-                                                    { name: 'Y2', gm: 42, ebitda: 22, net: 12 },
-                                                    { name: 'Y3', gm: 45, ebitda: 25, net: 15 },
-                                                ]}>
-                                                    <Area type="monotone" dataKey="gm" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.1} strokeWidth={2} />
-                                                    <Area type="monotone" dataKey="ebitda" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.1} strokeWidth={2} />
-                                                    <Area type="monotone" dataKey="net" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        <div className="flex justify-between text-[10px] text-slate-500 mt-2">
-                                            <span className="text-cyan-400">● Gross</span>
-                                            <span className="text-purple-400">● EBITDA</span>
-                                            <span className="text-green-400">● Net</span>
-                                        </div>
-                                     </div>
-                                     <div className="flex flex-col justify-center space-y-4">
-                                        <div className="bg-slate-950 border border-slate-800 p-3 rounded">
-                                            <div className="text-xs text-slate-500 uppercase">Revenue CAGR (3yr)</div>
-                                            <div className="text-xl font-bold text-white font-mono">18.5%</div>
-                                        </div>
-                                        <div className="bg-slate-950 border border-slate-800 p-3 rounded">
-                                            <div className="text-xs text-slate-500 uppercase">EBITDA CAGR (3yr)</div>
-                                            <div className="text-xl font-bold text-purple-400 font-mono">22.1%</div>
-                                        </div>
-                                     </div>
-                                </div>
                             </div>
                         )}
                         {financialView === 'BALANCE' && (
                             <div className="space-y-8">
-                                <div className="h-96 w-full mb-8">
-                                    <FinancialChart data={data.balanceSheet.rows.filter(r => r.metric.includes('Assets') || r.metric.includes('Equity'))} title="BS Trend" />
-                                </div>
+                                <div className="h-96 w-full mb-8"><FinancialChart data={data.balanceSheet.rows.filter(r => r.metric.includes('Assets') || r.metric.includes('Equity'))} title="BS Trend" /></div>
                                 <FinancialStatementTable statement={data.balanceSheet} />
-                                
-                                {/* CAPITAL STRUCTURE FILLER */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800 mt-4">
-                                    <div className="h-48">
-                                        <h4 className="text-xs text-slate-400 uppercase font-bold mb-2">Capital Structure</h4>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#0e7490' }} itemStyle={{color: '#fff'}} />
-                                                <ZAxis dataKey="value" />
-                                                <CartesianGrid stroke="none" />
-                                                <Area dataKey="value" />
-                                                {/* Mock Pie Data using LBO Debt vs Market Cap */}
-                                                {(() => {
-                                                    const debt = data.lbo.debtAmount;
-                                                    const equity = parseFloat(data.profile.marketCap.replace(/[^0-9.]/g, '')) * 1000; // Rough estimate if B, else M
-                                                    const pieData = [
-                                                        { name: 'Debt', value: debt, fill: '#ef4444' },
-                                                        { name: 'Equity', value: equity, fill: '#3b82f6' }
-                                                    ];
-                                                    return (
-                                                        // @ts-ignore - piechart types are tricky in this simplified snippet
-                                                        <Bar dataKey="value" data={pieData} /> 
-                                                    );
-                                                })()}
-                                                {/* Recharts Pie component would go here, simplified placeholder below */}
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                        {/* Manual Pie Placeholder for robustness since data needs cleaning */}
-                                        <div className="flex items-center justify-center h-full gap-8">
-                                            <div className="relative w-32 h-32 rounded-full border-8 border-blue-600 border-t-red-500 animate-spin-slow">
-                                                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                                                    D/E
-                                                </div>
-                                            </div>
-                                            <div className="space-y-2 text-xs">
-                                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-600"></div> Equity</div>
-                                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500"></div> Debt</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         )}
                         {financialView === 'CASH' && (
                             <div className="space-y-8">
-                                <div className="h-96 w-full mb-8">
-                                     <FinancialChart data={data.cashFlowStatement.rows.filter(r => r.metric.includes('Free') || r.metric.includes('CFO'))} title="CF Trend" />
-                                </div>
+                                <div className="h-96 w-full mb-8"><FinancialChart data={data.cashFlowStatement.rows.filter(r => r.metric.includes('Free') || r.metric.includes('CFO'))} title="CF Trend" /></div>
                                 <FinancialStatementTable statement={data.cashFlowStatement} />
                             </div>
                         )}
-                        {financialView === 'RATIOS' && (
-                            <RatiosGrid ratios={data.financialRatios} />
-                        )}
+                        {financialView === 'RATIOS' && <RatiosGrid ratios={data.financialRatios} />}
                     </div>
                  </Panel>
               )}
@@ -1665,46 +1551,15 @@ export default function MissionControl() {
                  <div className="space-y-6">
                     <Panel title="DCF Methodology" icon={Lock}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="flex flex-col justify-center">
-                                <div className="text-sm text-slate-400 mb-6">Discounted Cash Flow Analysis</div>
-                                <div className="space-y-4 text-xs font-mono">
-                                    <div className="flex justify-between border-b border-slate-800 pb-2">
-                                        <span>Terminal Growth Rate</span>
-                                        <span className="text-cyan-400 font-bold">{(data.dcf.terminalGrowthRate * 100).toFixed(1)}%</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-800 pb-2">
-                                        <span>WACC</span>
-                                        <span className="text-cyan-400 font-bold">{(data.dcf.wacc * 100).toFixed(1)}%</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-800 pb-2">
-                                        <span>Enterprise Value</span>
-                                        <span className="text-cyan-400 font-bold">{data.dcf.enterpriseValue.toLocaleString()} M</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-800 pb-2">
-                                        <span>Equity Value</span>
-                                        <span className="text-cyan-400 font-bold">{data.dcf.equityValue.toLocaleString()} M</span>
-                                    </div>
-                                </div>
+                            <div className="space-y-4 text-xs font-mono">
+                                <div className="flex justify-between border-b border-slate-800 pb-2"><span>Terminal Growth Rate</span><span className="text-cyan-400 font-bold">{(data.dcf.terminalGrowthRate * 100).toFixed(1)}%</span></div>
+                                <div className="flex justify-between border-b border-slate-800 pb-2"><span>WACC</span><span className="text-cyan-400 font-bold">{(data.dcf.wacc * 100).toFixed(1)}%</span></div>
+                                <div className="flex justify-between border-b border-slate-800 pb-2"><span>Enterprise Value</span><span className="text-cyan-400 font-bold">{data.dcf.enterpriseValue.toLocaleString()} M</span></div>
                             </div>
-                            <div className="h-96">
-                            <ValuationFootballField dcf={data.dcf} comps={data.valuationComps} />
-                            </div>
+                            <div className="h-96"><ValuationFootballField dcf={data.dcf} comps={data.valuationComps} /></div>
                         </div>
                     </Panel>
-                    
-                    {/* SENSITIVITY MATRIX */}
-                    <Panel title="Sensitivity Matrix (WACC vs. Growth)" icon={Target}>
-                        <div className="mb-2 text-xs text-slate-400">Impact on Share Price</div>
-                        <SensitivityMatrix baseWacc={data.dcf.wacc} baseGrowth={data.dcf.terminalGrowthRate} basePrice={data.dcf.sharePriceTarget} />
-                    </Panel>
-
-                     {/* RV SCATTER PLOT */}
-                     <Panel title="Relative Valuation (Growth vs. Multiple)" icon={ScatterIcon}>
-                        <div className="h-80">
-                            <CompsScatterPlot comps={data.valuationComps} />
-                        </div>
-                        <div className="text-center text-xs text-slate-500 mt-2">Revenue Growth (X) vs EV/EBITDA (Y)</div>
-                     </Panel>
+                    <Panel title="Sensitivity Matrix" icon={Target}><SensitivityMatrix baseWacc={data.dcf.wacc} baseGrowth={data.dcf.terminalGrowthRate} basePrice={data.dcf.sharePriceTarget} /></Panel>
                  </div>
               )}
 
@@ -1719,7 +1574,6 @@ export default function MissionControl() {
                                           <th className="p-2 text-right">EV/EBITDA</th>
                                           <th className="p-2 text-right">P/E</th>
                                           <th className="p-2 text-right">Rev Growth</th>
-                                          <th className="p-2 text-right">EBITDA Margin</th>
                                       </tr>
                                   </thead>
                                   <tbody>
@@ -1729,82 +1583,6 @@ export default function MissionControl() {
                                               <td className="p-2 text-right text-white">{comp.evEbitda.toFixed(1)}x</td>
                                               <td className="p-2 text-right text-white">{comp.pe.toFixed(1)}x</td>
                                               <td className="p-2 text-right text-white">{comp.revenueGrowth.toFixed(1)}%</td>
-                                              <td className="p-2 text-right text-white">{comp.ebitdaMargin.toFixed(1)}%</td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                              </table>
-                          </div>
-                      </Panel>
-
-                      {/* RELATIVE VALUATION CHART FILLER */}
-                      <Panel title="Relative Valuation Benchmarking" icon={BarChart3}>
-                           <div className="h-64 w-full">
-                               {(() => {
-                                   // Calculate Averages
-                                   const avgEbitda = data.valuationComps.reduce((acc, c) => acc + c.evEbitda, 0) / data.valuationComps.length;
-                                   const avgPe = data.valuationComps.reduce((acc, c) => acc + c.pe, 0) / data.valuationComps.length;
-                                   const targetComp = data.valuationComps.find(c => c.ticker === data.profile.ticker) || data.valuationComps[0]; // Fallback
-                                   
-                                   const benchmarkData = [
-                                       { name: 'EV/EBITDA', Target: targetComp.evEbitda, PeerAvg: avgEbitda },
-                                       { name: 'P/E', Target: targetComp.pe, PeerAvg: avgPe },
-                                   ];
-                                   
-                                   const premium = ((targetComp.evEbitda / avgEbitda) - 1) * 100;
-
-                                   return (
-                                       <div className="grid grid-cols-3 gap-4 h-full">
-                                           <div className="col-span-2 h-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart data={benchmarkData} layout="vertical" margin={{left: 20}}>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-                                                        <XAxis type="number" stroke="#64748b" tick={{fontSize: 10}} />
-                                                        <YAxis dataKey="name" type="category" stroke="#94a3b8" tick={{fontSize: 10}} width={60} />
-                                                        <Tooltip contentStyle={{ backgroundColor: '#020617', borderColor: '#0e7490' }} />
-                                                        <Legend wrapperStyle={{fontSize: '10px'}} />
-                                                        <Bar dataKey="Target" fill="#06b6d4" radius={[0, 4, 4, 0]} barSize={20} />
-                                                        <Bar dataKey="PeerAvg" fill="#64748b" radius={[0, 4, 4, 0]} barSize={20} />
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                           </div>
-                                           <div className="flex flex-col justify-center items-center bg-slate-900/50 border border-slate-800 rounded p-4">
-                                               <div className="text-xs text-slate-500 uppercase mb-1">Valuation vs Peers</div>
-                                               <div className={`text-2xl font-black font-mono ${premium > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                                   {premium > 0 ? '+' : ''}{premium.toFixed(1)}%
-                                               </div>
-                                               <div className={`text-[10px] uppercase font-bold px-2 py-1 rounded mt-2 ${premium > 0 ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
-                                                   {premium > 0 ? 'PREMIUM' : 'DISCOUNT'}
-                                               </div>
-                                           </div>
-                                       </div>
-                                   );
-                               })()}
-                           </div>
-                      </Panel>
-
-                      <Panel title="Precedent Transactions" icon={History} onDownload={() => downloadCSV(data.precedentTransactions, 'precedent_transactions')}>
-                           <div className="overflow-x-auto">
-                              <table className="w-full text-xs font-mono text-left">
-                                  <thead>
-                                      <tr className="border-b border-slate-800 text-slate-500">
-                                          <th className="p-2">Date</th>
-                                          <th className="p-2">Target</th>
-                                          <th className="p-2">Acquirer</th>
-                                          <th className="p-2 text-right">Deal Size (M)</th>
-                                          <th className="p-2 text-right">EV/EBITDA</th>
-                                          <th className="p-2 text-right">Premium</th>
-                                      </tr>
-                                  </thead>
-                                  <tbody>
-                                      {data.precedentTransactions.map((tx, i) => (
-                                          <tr key={i} className="border-b border-slate-900/50 hover:bg-purple-900/10 transition-colors">
-                                              <td className="p-2 text-slate-400">{tx.date}</td>
-                                              <td className="p-2 font-bold text-white">{tx.target}</td>
-                                              <td className="p-2 text-slate-300">{tx.acquirer}</td>
-                                              <td className="p-2 text-right text-white">${tx.dealSize.toLocaleString()}</td>
-                                              <td className="p-2 text-right text-white">{tx.evEbitda.toFixed(1)}x</td>
-                                              <td className="p-2 text-right text-green-400">{tx.premium.toFixed(1)}%</td>
                                           </tr>
                                       ))}
                                   </tbody>
@@ -1816,145 +1594,52 @@ export default function MissionControl() {
 
               {activeTab === 'DEEP_DIVE' && (
                   <div className="space-y-6">
-                     <Panel 
-                        title="Supply Chain & Network (Interactive)" 
-                        icon={Network} 
-                        className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[300px] flex flex-col justify-center"
-                     >
+                     <Panel title="Supply Chain & Network" icon={Network} className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[300px] flex flex-col justify-center">
                          <div onClick={() => setActiveModal('SUPPLY_CHAIN')} className="h-full flex flex-col">
-                            <div className="mb-4 text-xs text-slate-400 italic border-l-2 border-cyan-900 pl-2">
-                                {data.supplyChain.risks}
-                            </div>
-                            <div className="flex-1">
-                                <NetworkGraph supplyChain={data.supplyChain} />
-                            </div>
+                            <NetworkGraph supplyChain={data.supplyChain} />
                             <div className="text-center text-[10px] text-cyan-500 mt-4 uppercase tracking-widest animate-pulse">Click to Expand Network</div>
                          </div>
                      </Panel>
-                     
-                     <Panel 
-                        title="Forensics & Earnings Quality (Interactive)" 
-                        icon={Microscope}
-                        className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[300px] flex flex-col justify-center"
-                     >
+                     <Panel title="Forensics & Earnings Quality" icon={Microscope} className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[300px] flex flex-col justify-center">
                          <div onClick={() => setActiveModal('FORENSICS')} className="h-full flex flex-col justify-center">
                             <div className="flex items-center gap-12 justify-center">
                                 <div className="text-center">
-                                    <div className={`text-5xl font-black font-mono mb-2 ${data.earningsQuality.score > 80 ? 'text-green-400' : data.earningsQuality.score > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                        {data.earningsQuality.score}/100
-                                    </div>
+                                    <div className={`text-5xl font-black font-mono mb-2 ${data.earningsQuality.score > 80 ? 'text-green-400' : 'text-red-400'}`}>{data.earningsQuality.score}/100</div>
                                     <div className="text-xs uppercase text-slate-500 tracking-widest">Quality Score</div>
-                                </div>
-                                <div className="flex-1 max-w-md border-l border-slate-800 pl-8">
-                                    <h4 className="text-xs font-bold text-white mb-4 uppercase">Red Flags Detected</h4>
-                                    <ul className="space-y-2">
-                                        {data.earningsQuality.redFlags.map((flag, i) => (
-                                            <li key={i} className="text-xs text-red-300 flex items-start gap-2">
-                                                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-500" />
-                                                {flag}
-                                            </li>
-                                        ))}
-                                        {data.earningsQuality.redFlags.length === 0 && <li className="text-xs text-green-400">No major red flags detected.</li>}
-                                    </ul>
                                 </div>
                             </div>
                             <div className="text-center text-[10px] text-cyan-500 mt-8 uppercase tracking-widest animate-pulse">Click to View Forensic Report</div>
                          </div>
                      </Panel>
-
-                     {/* INSIDER ACTIVITY */}
-                     <Panel title="Insider Activity (Recent)" icon={User}>
-                        <InsiderTrades transactions={data.insiderActivity} />
-                     </Panel>
+                     <Panel title="Insider Activity" icon={User}><InsiderTrades transactions={data.insiderActivity} /></Panel>
                   </div>
               )}
-
             </div>
 
-            {/* RIGHT COLUMN (1/3) - SIDEBAR */}
             <div className="space-y-6">
-               {/* VERDICT MODULE */}
                <Panel title="Analyst Verdict" className="border-t-4 border-t-cyan-500">
                    <div className="flex items-center justify-between mb-4">
                        <div>
-                          <div className={`text-4xl font-black tracking-tighter ${
-                              data.thesis.rating === 'BUY' ? 'text-green-500' : data.thesis.rating === 'SELL' ? 'text-red-500' : 'text-yellow-500'
-                          }`}>
-                             {data.thesis.rating}
-                          </div>
-                          <div className="text-xs text-slate-500 uppercase tracking-widest mt-1">Recommendation</div>
+                          <div className={`text-4xl font-black tracking-tighter ${data.thesis.rating === 'BUY' ? 'text-green-500' : data.thesis.rating === 'SELL' ? 'text-red-500' : 'text-yellow-500'}`}>{data.thesis.rating}</div>
                        </div>
                        <div className="text-right">
                           <div className="text-2xl font-bold text-white font-mono">{data.thesis.conviction}%</div>
-                          <div className="text-xs text-slate-500 uppercase tracking-widest">Conviction</div>
                        </div>
                    </div>
-                   
                    <ScoreBar score={data.thesis.moatScore} label="Moat Strength" icon={Shield} />
-                   <div className="text-[10px] text-slate-500 -mt-3 mb-3 text-right italic">{data.thesis.moatSource}</div>
-                   
                    <ScoreBar score={data.thesis.managementScore} label="Management" icon={Briefcase} />
                </Panel>
-
-               {/* THE WIRE - Only show in Sidebar if NOT Overview tab */}
-               {activeTab !== 'OVERVIEW' && (
-                   <Panel title="The Wire" icon={Newspaper}>
-                      <NewsWire news={data.news} />
-                   </Panel>
-               )}
-
+               {activeTab !== 'OVERVIEW' && <Panel title="The Wire" icon={Newspaper}><NewsWire news={data.news} /></Panel>}
                <Panel title="LBO Feasibility" icon={PieChart}>
                  <div className="flex flex-col items-center justify-center py-4">
-                    <div className={`text-4xl font-bold font-mono mb-2 ${data.lbo.irr > 20 ? 'text-green-400' : data.lbo.irr > 15 ? 'text-yellow-400' : 'text-red-400'}`}>
-                       {data.lbo.irr.toFixed(1)}%
-                    </div>
+                    <div className={`text-4xl font-bold font-mono mb-2 ${data.lbo.irr > 20 ? 'text-green-400' : 'text-red-400'}`}>{data.lbo.irr.toFixed(1)}%</div>
                     <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">Projected 5-Yr IRR</div>
-                    
-                    <div className="w-full space-y-3 text-xs font-mono">
-                       <div className="flex justify-between">
-                          <span className="text-slate-400">Entry Multiple</span>
-                          <span className="text-white">{data.lbo.entryMultiple}x</span>
-                       </div>
-                       <div className="w-full bg-slate-800 h-1">
-                          <div className="bg-cyan-600 h-1" style={{width: '70%'}}></div>
-                       </div>
-                       <div className="flex justify-between">
-                          <span className="text-slate-400">Exit Multiple</span>
-                          <span className="text-white">{data.lbo.exitMultiple}x</span>
-                       </div>
-                       <div className="flex justify-between pt-2 border-t border-slate-800">
-                          <span className="text-slate-400">Est. Debt Cap</span>
-                          <span className="text-red-400">${data.lbo.debtAmount.toLocaleString()} M</span>
-                       </div>
-                    </div>
                  </div>
                </Panel>
-
-               <Panel title="Market Comps" icon={Search}>
-                  <div className="space-y-3">
-                     {data.valuationComps.map((comp, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 bg-slate-950/50 border border-slate-800">
-                           <span className="font-bold text-cyan-500">{comp.ticker}</span>
-                           <div className="text-right">
-                              <div className="text-xs text-slate-400">EV/EBITDA</div>
-                              <div className="font-mono text-white">{comp.evEbitda.toFixed(1)}x</div>
-                           </div>
-                           <div className="text-right">
-                              <div className="text-xs text-slate-400">P/E</div>
-                              <div className="font-mono text-white">{comp.pe.toFixed(1)}x</div>
-                           </div>
-                        </div>
-                     ))}
-                  </div>
-               </Panel>
-               
                <div className="p-4 border border-yellow-900/30 bg-yellow-900/10 rounded-sm flex items-start gap-3">
                   <AlertTriangle className="text-yellow-600 shrink-0" size={20} />
-                  <p className="text-[10px] text-yellow-500 leading-tight">
-                     AI GENERATED MODELS. FOR INFORMATIONAL PURPOSES ONLY. NOT FINANCIAL ADVICE. VERIFY ALL ASSUMPTIONS.
-                  </p>
+                  <p className="text-[10px] text-yellow-500 leading-tight">AI GENERATED MODELS. FOR INFORMATIONAL PURPOSES ONLY. LIMIT: {SEARCH_LIMIT} RESEARCH CYCLES PER STATION PER MONTH.</p>
                </div>
-
             </div>
             </>
             )}
@@ -1962,33 +1647,14 @@ export default function MissionControl() {
         </div>
       )}
 
-      {/* MODALS */}
       <Modal isOpen={activeModal === 'SUPPLY_CHAIN'} onClose={() => setActiveModal(null)} title="Deep Supply Chain Analysis">
          {data && (
             <div className="space-y-6">
                <p className="text-sm text-slate-300 leading-relaxed">{data.supplyChain.risks}</p>
                <div className="grid grid-cols-2 gap-6">
                   <div className="bg-slate-900/50 p-4 border border-slate-800">
-                     <h4 className="text-xs font-bold text-cyan-400 uppercase mb-4">Upstream Suppliers (Risk Assessment)</h4>
-                     <ul className="space-y-2 text-sm">
-                        {data.supplyChain.suppliers.map((s, i) => (
-                           <li key={i} className="flex justify-between border-b border-slate-800 pb-2">
-                              <span className="text-white">{s}</span>
-                              <span className="text-yellow-500 text-xs">Medium Dependency</span>
-                           </li>
-                        ))}
-                     </ul>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 border border-slate-800">
-                     <h4 className="text-xs font-bold text-purple-400 uppercase mb-4">Downstream Clients (Revenue Exposure)</h4>
-                     <ul className="space-y-2 text-sm">
-                        {data.supplyChain.customers.map((c, i) => (
-                           <li key={i} className="flex justify-between border-b border-slate-800 pb-2">
-                              <span className="text-white">{c}</span>
-                              <span className="text-green-500 text-xs">High Growth</span>
-                           </li>
-                        ))}
-                     </ul>
+                     <h4 className="text-xs font-bold text-cyan-400 uppercase mb-4">Upstream Suppliers</h4>
+                     <ul className="space-y-2 text-sm">{data.supplyChain.suppliers.map((s, i) => <li key={i} className="flex justify-between border-b border-slate-800 pb-2"><span className="text-white">{s}</span></li>)}</ul>
                   </div>
                </div>
             </div>
@@ -2000,33 +1666,18 @@ export default function MissionControl() {
             <div className="space-y-6">
                <div className="flex items-start gap-4 bg-slate-900/50 p-4 border border-red-900/30">
                   <AlertTriangle size={24} className="text-red-500 shrink-0" />
-                  <div>
-                     <h4 className="text-sm font-bold text-red-400 uppercase mb-1">Accounting Anomalies Detected</h4>
-                     <ul className="list-disc pl-4 space-y-1">
-                        {data.earningsQuality.redFlags.map((flag, i) => (
-                           <li key={i} className="text-xs text-slate-300">{flag}</li>
-                        ))}
-                     </ul>
-                  </div>
-               </div>
-               <div className="p-4 bg-slate-900/50 border border-slate-800">
-                  <h4 className="text-xs font-bold text-cyan-400 uppercase mb-2">Auditor Notes</h4>
-                  <p className="text-sm text-slate-400 font-mono whitespace-pre-line">{data.earningsQuality.accountingNotes}</p>
+                  <div><h4 className="text-sm font-bold text-red-400 uppercase mb-1">Accounting Anomalies Detected</h4><ul className="list-disc pl-4 space-y-1">{data.earningsQuality.redFlags.map((flag, i) => <li key={i} className="text-xs text-slate-300">{flag}</li>)}</ul></div>
                </div>
             </div>
          )}
       </Modal>
       
-      {/* Fixed Bottom Command Terminal */}
       {status === AnalysisStatus.COMPLETE && data && (
          <>
              <FloatingAgent onClick={() => setShowTerminal(!showTerminal)} />
-             
              <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${showTerminal ? 'translate-y-0' : 'translate-y-[110%]'}`}>
                  <div className="max-w-3xl mx-auto h-[350px] shadow-[0_-20px_50px_rgba(0,0,0,0.9)]">
-                     <div className="flex justify-end mb-1">
-                        <button onClick={() => setShowTerminal(false)} className="bg-slate-900 text-slate-500 px-2 py-1 text-[10px] uppercase hover:text-white">Close Terminal</button>
-                     </div>
+                     <div className="flex justify-end mb-1"><button onClick={() => setShowTerminal(false)} className="bg-slate-900 text-slate-500 px-2 py-1 text-[10px] uppercase hover:text-white">Close Terminal</button></div>
                      <AlphaTerminal analysis={data} />
                  </div>
              </div>
@@ -2036,19 +1687,9 @@ export default function MissionControl() {
       {status === AnalysisStatus.ERROR && (
          <div className="max-w-2xl mx-auto mt-20 p-8 bg-red-950/20 border border-red-900 text-center">
             <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
-            <h2 className="text-xl text-red-400 font-bold mb-2">ANALYSIS FAILED</h2>
-            <p className="text-slate-400 mb-4">Unable to retrieve data for the requested target.</p>
-            {errorMsg && (
-                <div className="bg-red-950/50 p-3 rounded text-xs font-mono text-red-300 mb-6 overflow-auto max-h-32 text-left whitespace-pre-wrap">
-                    {errorMsg}
-                </div>
-            )}
-            <button 
-               onClick={() => setStatus(AnalysisStatus.IDLE)}
-               className="px-6 py-2 border border-red-800 text-red-400 hover:bg-red-900/30"
-            >
-               RESET SYSTEM
-            </button>
+            <h2 className="text-xl text-red-400 font-bold mb-2">ACCESS RESTRICTED</h2>
+            <p className="text-slate-400 mb-4">{errorMsg || "Target acquisition failed."}</p>
+            <button onClick={() => setStatus(AnalysisStatus.IDLE)} className="px-6 py-2 border border-red-800 text-red-400 hover:bg-red-900/30 uppercase font-bold tracking-widest text-xs">Reset System</button>
          </div>
       )}
     </div>

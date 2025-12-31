@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert } from 'lucide-react';
 import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage } from '../services/geminiService';
-import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota } from '../types';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart } from 'recharts';
+import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp } from '../types';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart, ReferenceLine } from 'recharts';
 
 // --- QUOTA CONSTANTS ---
 const SEARCH_LIMIT = 10;
@@ -448,6 +448,35 @@ const CompsScatterPlot = ({ comps }: { comps: any[] }) => {
         </div>
     );
 };
+
+const RuleOf40Chart = ({ comps }: { comps: ValuationComp[] }) => {
+    return (
+        <div className="w-full h-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis type="number" dataKey="revenueGrowth" name="Rev Growth" unit="%" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'Revenue Growth %', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }} />
+                    <YAxis type="number" dataKey="ebitdaMargin" name="EBITDA Margin" unit="%" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'EBITDA Margin %', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} />
+                    <Tooltip 
+                        cursor={{ strokeDasharray: '3 3' }} 
+                        contentStyle={{ backgroundColor: '#020617', borderColor: '#0e7490', color: '#fff' }}
+                        formatter={(value: any, name: any, props: any) => {
+                             if (name === 'Rev Growth') return [`${value}%`, name];
+                             if (name === 'EBITDA Margin') return [`${value}%`, name];
+                             return [value, name];
+                        }}
+                    />
+                    <Scatter name="Peers" data={comps}>
+                        {comps.map((entry, index) => {
+                            const score = entry.revenueGrowth + entry.ebitdaMargin;
+                            return <Cell key={`cell-${index}`} fill={score >= 40 ? '#10b981' : '#ef4444'} />;
+                        })}
+                    </Scatter>
+                </ScatterChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
 
 const AIRadarChart = ({ risk }: { risk: any }) => {
   const data = [
@@ -1565,24 +1594,36 @@ export default function MissionControl() {
 
               {activeTab === 'COMPS' && (
                   <div className="space-y-6">
-                      <Panel title="Public Comparable Analysis" icon={Table} onDownload={() => downloadCSV(data.valuationComps, 'public_comps')}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-96">
+                          <Panel title="EV/EBITDA vs Growth" icon={ScatterIcon}>
+                             <CompsScatterPlot comps={data.valuationComps} />
+                          </Panel>
+                          <Panel title="Rule of 40 Analysis" icon={TrendingUp}>
+                             <RuleOf40Chart comps={data.valuationComps} />
+                          </Panel>
+                      </div>
+                      <Panel title="Institutional Comparable Analysis" icon={Table} onDownload={() => downloadCSV(data.valuationComps, 'public_comps')}>
                           <div className="overflow-x-auto">
                               <table className="w-full text-xs font-mono text-left">
                                   <thead>
                                       <tr className="border-b border-slate-800 text-slate-500">
                                           <th className="p-2">Ticker</th>
+                                          <th className="p-2 text-right">EV/Sales</th>
                                           <th className="p-2 text-right">EV/EBITDA</th>
                                           <th className="p-2 text-right">P/E</th>
-                                          <th className="p-2 text-right">Rev Growth</th>
+                                          <th className="p-2 text-right">Net Debt/EBITDA</th>
+                                          <th className="p-2 text-right">Rule of 40</th>
                                       </tr>
                                   </thead>
                                   <tbody>
                                       {data.valuationComps.map((comp, i) => (
                                           <tr key={i} className="border-b border-slate-900/50 hover:bg-cyan-900/10 transition-colors">
                                               <td className="p-2 font-bold text-cyan-400">{comp.ticker}</td>
-                                              <td className="p-2 text-right text-white">{comp.evEbitda.toFixed(1)}x</td>
-                                              <td className="p-2 text-right text-white">{comp.pe.toFixed(1)}x</td>
-                                              <td className="p-2 text-right text-white">{comp.revenueGrowth.toFixed(1)}%</td>
+                                              <td className="p-2 text-right text-white">{comp.evSales ? comp.evSales.toFixed(1) : '-'}x</td>
+                                              <td className="p-2 text-right text-white">{comp.evEbitda ? comp.evEbitda.toFixed(1) : '-'}x</td>
+                                              <td className="p-2 text-right text-white">{comp.pe ? comp.pe.toFixed(1) : '-'}x</td>
+                                              <td className={`p-2 text-right ${comp.netDebtEbitda > 4 ? 'text-red-400' : 'text-slate-300'}`}>{comp.netDebtEbitda ? comp.netDebtEbitda.toFixed(1) : '-'}x</td>
+                                              <td className={`p-2 text-right font-bold ${comp.ruleOf40 >= 40 ? 'text-green-400' : 'text-red-400'}`}>{comp.ruleOf40 ? comp.ruleOf40.toFixed(1) : '-'}%</td>
                                           </tr>
                                       ))}
                                   </tbody>

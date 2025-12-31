@@ -1,4 +1,5 @@
 
+
 export enum AnalysisStatus {
   IDLE = 'IDLE',
   SEARCHING = 'SEARCHING',
@@ -197,6 +198,17 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface ValuationComp {
+  ticker: string;
+  evEbitda: number;
+  evSales: number;
+  pe: number;
+  revenueGrowth: number;
+  ebitdaMargin: number;
+  netDebtEbitda: number;
+  ruleOf40: number; // Revenue Growth + EBITDA Margin
+}
+
 export interface FullAnalysis {
   profile: CompanyProfile;
   thesis: InvestmentThesis;
@@ -206,7 +218,7 @@ export interface FullAnalysis {
   financialRatios: FinancialRatios;
   dcf: DCFModel;
   lbo: LBOModel;
-  valuationComps: { ticker: string; evEbitda: number; pe: number; revenueGrowth: number; ebitdaMargin: number }[];
+  valuationComps: ValuationComp[];
   precedentTransactions: PrecedentTransaction[];
   aiRisk: AIRiskAnalysis;
   news: NewsItem[];

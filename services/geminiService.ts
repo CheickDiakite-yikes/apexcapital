@@ -139,6 +139,7 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
     2. **VP (Valuation & LBO)**:
        - Perform a 5-Year DCF. WACC must be sector-appropriate.
        - Perform an LBO feasibility check. Can this company support leverage?
+       - **Comps Table**: Must include EV/Sales, EV/EBITDA, P/E, Net Debt/EBITDA, and Rule of 40 (Growth% + Margin%) for 5-7 peers.
 
     3. **PM (Variant Perception)**:
        - What is the consensus missing?
@@ -172,7 +173,7 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
       "financialRatios": { "profitability": [{ "name": "ROIC", "value": "0%" }], "liquidity": [{ "name": "Current Ratio", "value": "0x" }], "solvency": [{ "name": "Debt/Equity", "value": "0x" }], "efficiency": [{ "name": "Asset Turnover", "value": "0x" }] },
       "dcf": { "wacc": 0.1, "terminalGrowthRate": 0.03, "enterpriseValue": 0, "equityValue": 0, "sharePriceTarget": 0, "upsideDownside": 0, "fcfProjections": [0,0,0,0,0] },
       "lbo": { "entryMultiple": 0, "exitMultiple": 0, "debtAmount": 0, "irr": 0, "moc": 0 },
-      "valuationComps": [{ "ticker": "COMP", "evEbitda": 0, "pe": 0, "revenueGrowth": 0, "ebitdaMargin": 0 }],
+      "valuationComps": [{ "ticker": "COMP", "evEbitda": 0, "evSales": 0, "pe": 0, "revenueGrowth": 0, "ebitdaMargin": 0, "netDebtEbitda": 0, "ruleOf40": 0 }],
       "precedentTransactions": [{ "date": "2023-01-01", "target": "Target", "acquirer": "Buyer", "dealSize": 0, "evEbitda": 0, "premium": 0 }]
     }
   `;

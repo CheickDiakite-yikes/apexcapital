@@ -89,10 +89,18 @@ export interface NewsItem {
   type: 'M&A' | 'EARNINGS' | 'MACRO' | 'RUMOR';
 }
 
+export interface SupplyChainNode {
+  name: string;
+  type: 'Supplier' | 'Customer' | 'Partner';
+  sector: string;
+  criticalityScore: number; // 1-10 (Thickness of the link)
+  description: string;
+}
+
 export interface SupplyChain {
-  suppliers: string[];
-  customers: string[];
-  risks: string;
+  network: SupplyChainNode[];
+  risks: string[];
+  geographicExposure: string; // e.g., "High exposure to Taiwan (Semiconductors)"
 }
 
 export interface EarningsQuality {
@@ -205,8 +213,10 @@ export interface ValuationComp {
   pe: number;
   revenueGrowth: number;
   ebitdaMargin: number;
+  grossMargin: number; // Pricing Power Proxy
   netDebtEbitda: number;
   ruleOf40: number; // Revenue Growth + EBITDA Margin
+  marketCap: number; // In Billions, for bubble size
 }
 
 export interface FullAnalysis {

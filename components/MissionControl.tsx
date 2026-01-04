@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert } from 'lucide-react';
 import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage } from '../services/geminiService';
-import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp } from '../types';
+import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp, SupplyChain } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart, ReferenceLine } from 'recharts';
 
 // --- QUOTA CONSTANTS ---
@@ -219,13 +219,13 @@ const TickerTape = () => {
   );
 };
 
-const NewsWire = ({ news }: { news: NewsItem[] }) => {
+const NewsWire = ({ news, maxHeight = "max-h-[600px]" }: { news: NewsItem[], maxHeight?: string }) => {
     if (!news || news.length === 0) return (
         <div className="text-center text-xs text-slate-500 py-4 italic">No recent wire updates.</div>
     );
 
     return (
-        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+        <div className={`space-y-3 ${maxHeight} overflow-y-auto pr-2 custom-scrollbar`}>
             {news.map((item, idx) => (
                 <div key={idx} className="border-l-2 border-slate-800 pl-3 py-1 hover:border-cyan-500 transition-colors group">
                     <div className="flex justify-between items-start mb-1">
@@ -435,9 +435,10 @@ const CompsScatterPlot = ({ comps }: { comps: any[] }) => {
             <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis type="number" dataKey="revenueGrowth" name="Rev Growth" unit="%" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'Revenue Growth %', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }} />
-                    <YAxis type="number" dataKey="evEbitda" name="EV/EBITDA" unit="x" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'EV / EBITDA', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} />
+                    <XAxis type="number" dataKey="grossMargin" name="Gross Margin" unit="%" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'Gross Margin %', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }} />
+                    <YAxis type="number" dataKey="evSales" name="EV/Sales" unit="x" stroke="#64748b" tick={{fontSize: 10}} label={{ value: 'EV / Sales', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} />
                     <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#020617', borderColor: '#0e7490', color: '#fff' }} />
+                    <ZAxis dataKey="marketCap" range={[60, 600]} name="Market Cap" unit="B" />
                     <Scatter name="Peers" data={comps} fill="#8884d8">
                         {comps.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.ticker === 'TARGET' ? '#06b6d4' : '#8b5cf6'} />
@@ -920,35 +921,72 @@ const PortfolioOverview = ({ data }: { data: typeof PORTFOLIO_DATA_INIT }) => (
   </Panel>
 );
 
-const NetworkGraph = ({ supplyChain }: { supplyChain: any }) => {
+const NetworkGraph = ({ supplyChain }: { supplyChain: SupplyChain }) => {
+  // Safe default for network if missing
+  const entities = supplyChain.network || [];
+  const suppliers = entities.filter(e => e.type === 'Supplier');
+  const customers = entities.filter(e => e.type === 'Customer');
+  const partners = entities.filter(e => e.type === 'Partner');
+
   return (
-    <div className="w-full h-full flex items-center justify-center bg-slate-950/30 border border-slate-800/50 rounded p-4 relative overflow-hidden">
-       <div className="absolute inset-0 grid grid-cols-12 gap-4 opacity-10 pointer-events-none">
-          {Array.from({length: 12}).map((_, i) => <div key={i} className="border-r border-cyan-500 h-full"></div>)}
-       </div>
+    <div className="w-full h-full bg-slate-950/30 border border-slate-800/50 rounded relative overflow-hidden flex flex-col items-center justify-center p-8">
+       {/* Background Grid */}
+       <div className="absolute inset-0 cyber-grid opacity-20 pointer-events-none"></div>
        
-       <div className="flex justify-between items-center w-full max-w-2xl z-10">
-          <div className="space-y-4">
-             {supplyChain.suppliers.slice(0, 3).map((s: string, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                   <div className="bg-slate-900 border border-slate-700 text-[10px] px-2 py-1 rounded text-slate-300 w-32 text-right truncate">{s}</div>
-                   <div className="w-8 h-px bg-gradient-to-r from-slate-700 to-cyan-500"></div>
+       <div className="flex justify-between items-center w-full max-w-4xl z-10 gap-16">
+          {/* Suppliers Column */}
+          <div className="space-y-6 flex-1 flex flex-col items-end">
+             <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2 text-right">Upstream (Suppliers)</div>
+             {suppliers.map((s, i) => (
+                <div key={i} className="flex items-center gap-4 group relative">
+                    <div className="text-right">
+                       <div className="text-xs font-bold text-white">{s.name}</div>
+                       <div className="text-[10px] text-slate-500">{s.sector}</div>
+                    </div>
+                    {/* Line Connector */}
+                    <div className="w-12 h-px bg-gradient-to-r from-transparent to-cyan-500 opacity-50 group-hover:opacity-100 transition-opacity" style={{ height: Math.max(1, s.criticalityScore / 2) }}></div>
+                    {/* Node */}
+                    <div className={`w-3 h-3 rounded-full border border-cyan-500 bg-slate-900 group-hover:bg-cyan-500 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.3)]`}></div>
+                    
+                    {/* Hover Tooltip */}
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-black border border-slate-800 p-2 z-50 hidden group-hover:block rounded shadow-xl">
+                       <div className="text-[10px] text-slate-400">{s.description}</div>
+                       <div className="text-[9px] text-cyan-500 mt-1 font-bold">Criticality: {s.criticalityScore}/10</div>
+                    </div>
                 </div>
              ))}
           </div>
           
-          <div className="relative">
-             <div className="w-16 h-16 rounded-full border-2 border-cyan-500 bg-cyan-900/20 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-                <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+          {/* Target Node */}
+          <div className="relative shrink-0">
+             <div className="w-24 h-24 rounded-full border-2 border-cyan-400 bg-cyan-900/10 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.2)] animate-pulse-slow">
+                <div className="w-20 h-20 rounded-full border border-cyan-500/50 flex items-center justify-center">
+                   <Target className="text-cyan-400" size={32} />
+                </div>
              </div>
-             <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-cyan-400 font-bold tracking-widest">TARGET</div>
+             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-cyan-400 tracking-widest uppercase">TARGET</div>
           </div>
           
-          <div className="space-y-4">
-             {supplyChain.customers.slice(0, 3).map((c: string, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                   <div className="w-8 h-px bg-gradient-to-l from-slate-700 to-purple-500"></div>
-                   <div className="bg-slate-900 border border-slate-700 text-[10px] px-2 py-1 rounded text-slate-300 w-32 truncate">{c}</div>
+          {/* Customers Column */}
+          <div className="space-y-6 flex-1 flex flex-col items-start">
+             <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-2">Downstream (Customers)</div>
+             {customers.map((c, i) => (
+                <div key={i} className="flex items-center gap-4 group relative">
+                    {/* Node */}
+                    <div className={`w-3 h-3 rounded-full border border-purple-500 bg-slate-900 group-hover:bg-purple-500 transition-colors shadow-[0_0_10px_rgba(168,85,247,0.3)]`}></div>
+                    {/* Line Connector */}
+                    <div className="w-12 h-px bg-gradient-to-l from-transparent to-purple-500 opacity-50 group-hover:opacity-100 transition-opacity" style={{ height: Math.max(1, c.criticalityScore / 2) }}></div>
+                    
+                    <div className="text-left">
+                       <div className="text-xs font-bold text-white">{c.name}</div>
+                       <div className="text-[10px] text-slate-500">{c.sector}</div>
+                    </div>
+
+                    {/* Hover Tooltip */}
+                    <div className="absolute left-0 top-full mt-2 w-48 bg-black border border-slate-800 p-2 z-50 hidden group-hover:block rounded shadow-xl">
+                       <div className="text-[10px] text-slate-400">{c.description}</div>
+                       <div className="text-[9px] text-purple-500 mt-1 font-bold">Criticality: {c.criticalityScore}/10</div>
+                    </div>
                 </div>
              ))}
           </div>
@@ -1352,14 +1390,12 @@ export default function MissionControl() {
              ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="space-y-8">
             {activeTab === 'REPORT' ? (
-                <div className="col-span-3">
-                    <ResearchReport data={data} />
-                </div>
+                <ResearchReport data={data} />
             ) : (
             <>
-            <div className="lg:col-span-2 space-y-6">
+            <div className="w-full space-y-6">
               {activeTab === 'OVERVIEW' && (
                 <>
                    <Panel title="Executive Summary" icon={Globe}>
@@ -1635,7 +1671,7 @@ export default function MissionControl() {
 
               {activeTab === 'DEEP_DIVE' && (
                   <div className="space-y-6">
-                     <Panel title="Supply Chain & Network" icon={Network} className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[300px] flex flex-col justify-center">
+                     <Panel title="Supply Chain & Network" icon={Network} className="cursor-pointer hover:border-cyan-500 transition-colors min-h-[400px] flex flex-col justify-center">
                          <div onClick={() => setActiveModal('SUPPLY_CHAIN')} className="h-full flex flex-col">
                             <NetworkGraph supplyChain={data.supplyChain} />
                             <div className="text-center text-[10px] text-cyan-500 mt-4 uppercase tracking-widest animate-pulse">Click to Expand Network</div>
@@ -1657,8 +1693,8 @@ export default function MissionControl() {
               )}
             </div>
 
-            <div className="space-y-6">
-               <Panel title="Analyst Verdict" className="border-t-4 border-t-cyan-500">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start border-t border-cyan-900/30 pt-8">
+               <Panel title="Analyst Verdict" className="border-t-4 border-t-cyan-500 h-full">
                    <div className="flex items-center justify-between mb-4">
                        <div>
                           <div className={`text-4xl font-black tracking-tighter ${data.thesis.rating === 'BUY' ? 'text-green-500' : data.thesis.rating === 'SELL' ? 'text-red-500' : 'text-yellow-500'}`}>{data.thesis.rating}</div>
@@ -1670,16 +1706,33 @@ export default function MissionControl() {
                    <ScoreBar score={data.thesis.moatScore} label="Moat Strength" icon={Shield} />
                    <ScoreBar score={data.thesis.managementScore} label="Management" icon={Briefcase} />
                </Panel>
-               {activeTab !== 'OVERVIEW' && <Panel title="The Wire" icon={Newspaper}><NewsWire news={data.news} /></Panel>}
-               <Panel title="LBO Feasibility" icon={PieChart}>
-                 <div className="flex flex-col items-center justify-center py-4">
-                    <div className={`text-4xl font-bold font-mono mb-2 ${data.lbo.irr > 20 ? 'text-green-400' : 'text-red-400'}`}>{data.lbo.irr.toFixed(1)}%</div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">Projected 5-Yr IRR</div>
-                 </div>
-               </Panel>
-               <div className="p-4 border border-yellow-900/30 bg-yellow-900/10 rounded-sm flex items-start gap-3">
-                  <AlertTriangle className="text-yellow-600 shrink-0" size={20} />
-                  <p className="text-[10px] text-yellow-500 leading-tight">AI GENERATED MODELS. FOR INFORMATIONAL PURPOSES ONLY. LIMIT: {SEARCH_LIMIT} RESEARCH CYCLES PER STATION PER MONTH.</p>
+
+               <div className="space-y-6">
+                    {activeTab !== 'OVERVIEW' ? (
+                        <Panel title="The Wire" icon={Newspaper}><NewsWire news={data.news} maxHeight="max-h-[300px]" /></Panel>
+                    ) : (
+                        <Panel title="LBO Feasibility" icon={PieChart}>
+                            <div className="flex flex-col items-center justify-center py-4">
+                                <div className={`text-4xl font-bold font-mono mb-2 ${data.lbo.irr > 20 ? 'text-green-400' : 'text-red-400'}`}>{data.lbo.irr.toFixed(1)}%</div>
+                                <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">Projected 5-Yr IRR</div>
+                            </div>
+                        </Panel>
+                    )}
+               </div>
+
+               <div className="space-y-6">
+                    {activeTab !== 'OVERVIEW' && (
+                        <Panel title="LBO Feasibility" icon={PieChart}>
+                             <div className="flex flex-col items-center justify-center py-4">
+                                <div className={`text-4xl font-bold font-mono mb-2 ${data.lbo.irr > 20 ? 'text-green-400' : 'text-red-400'}`}>{data.lbo.irr.toFixed(1)}%</div>
+                                <div className="text-xs text-slate-500 uppercase tracking-wider mb-4">Projected 5-Yr IRR</div>
+                             </div>
+                        </Panel>
+                    )}
+                    <div className="p-4 border border-yellow-900/30 bg-yellow-900/10 rounded-sm flex items-start gap-3">
+                        <AlertTriangle className="text-yellow-600 shrink-0" size={20} />
+                        <p className="text-[10px] text-yellow-500 leading-tight">AI GENERATED MODELS. FOR INFORMATIONAL PURPOSES ONLY. LIMIT: {SEARCH_LIMIT} RESEARCH CYCLES PER STATION PER MONTH.</p>
+                    </div>
                </div>
             </div>
             </>
@@ -1689,50 +1742,3 @@ export default function MissionControl() {
       )}
 
       <Modal isOpen={activeModal === 'SUPPLY_CHAIN'} onClose={() => setActiveModal(null)} title="Deep Supply Chain Analysis">
-         {data && (
-            <div className="space-y-6">
-               <p className="text-sm text-slate-300 leading-relaxed">{data.supplyChain.risks}</p>
-               <div className="grid grid-cols-2 gap-6">
-                  <div className="bg-slate-900/50 p-4 border border-slate-800">
-                     <h4 className="text-xs font-bold text-cyan-400 uppercase mb-4">Upstream Suppliers</h4>
-                     <ul className="space-y-2 text-sm">{data.supplyChain.suppliers.map((s, i) => <li key={i} className="flex justify-between border-b border-slate-800 pb-2"><span className="text-white">{s}</span></li>)}</ul>
-                  </div>
-               </div>
-            </div>
-         )}
-      </Modal>
-
-      <Modal isOpen={activeModal === 'FORENSICS'} onClose={() => setActiveModal(null)} title="Forensic Accounting Report">
-         {data && (
-            <div className="space-y-6">
-               <div className="flex items-start gap-4 bg-slate-900/50 p-4 border border-red-900/30">
-                  <AlertTriangle size={24} className="text-red-500 shrink-0" />
-                  <div><h4 className="text-sm font-bold text-red-400 uppercase mb-1">Accounting Anomalies Detected</h4><ul className="list-disc pl-4 space-y-1">{data.earningsQuality.redFlags.map((flag, i) => <li key={i} className="text-xs text-slate-300">{flag}</li>)}</ul></div>
-               </div>
-            </div>
-         )}
-      </Modal>
-      
-      {status === AnalysisStatus.COMPLETE && data && (
-         <>
-             <FloatingAgent onClick={() => setShowTerminal(!showTerminal)} />
-             <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${showTerminal ? 'translate-y-0' : 'translate-y-[110%]'}`}>
-                 <div className="max-w-3xl mx-auto h-[350px] shadow-[0_-20px_50px_rgba(0,0,0,0.9)]">
-                     <div className="flex justify-end mb-1"><button onClick={() => setShowTerminal(false)} className="bg-slate-900 text-slate-500 px-2 py-1 text-[10px] uppercase hover:text-white">Close Terminal</button></div>
-                     <AlphaTerminal analysis={data} />
-                 </div>
-             </div>
-         </>
-      )}
-
-      {status === AnalysisStatus.ERROR && (
-         <div className="max-w-2xl mx-auto mt-20 p-8 bg-red-950/20 border border-red-900 text-center">
-            <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
-            <h2 className="text-xl text-red-400 font-bold mb-2">ACCESS RESTRICTED</h2>
-            <p className="text-slate-400 mb-4">{errorMsg || "Target acquisition failed."}</p>
-            <button onClick={() => setStatus(AnalysisStatus.IDLE)} className="px-6 py-2 border border-red-800 text-red-400 hover:bg-red-900/30 uppercase font-bold tracking-widest text-xs">Reset System</button>
-         </div>
-      )}
-    </div>
-  );
-}

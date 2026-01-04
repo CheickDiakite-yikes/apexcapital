@@ -139,14 +139,14 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
     2. **VP (Valuation & LBO)**:
        - Perform a 5-Year DCF. WACC must be sector-appropriate.
        - Perform an LBO feasibility check. Can this company support leverage?
-       - **Comps Table**: Must include EV/Sales, EV/EBITDA, P/E, Net Debt/EBITDA, and Rule of 40 (Growth% + Margin%) for 5-7 peers.
+       - **Comps Table**: Must include EV/Sales, EV/EBITDA, P/E, Net Debt/EBITDA, Rule of 40 (Growth% + Margin%), Gross Margin, and Market Cap (in Billions) for 5-7 peers.
 
     3. **PM (Variant Perception)**:
        - What is the consensus missing?
        - **AI Sovereignty**: Calculate "Vibecode Sensitivity". If the company OWNS the rails (GOOGL, MSFT, NVDA), sensitivity is LOW. If they are a legacy service bureau, sensitivity is HIGH.
 
     4. **SCOUT (Intelligence)**:
-       - Supply Chain Graph: Identify specific suppliers (e.g., TSMC, Foxconn) and key customers.
+       - **Supply Chain Graph**: Do not just list names. Identify key suppliers and customers and their "Criticality Score" (1-10) to the target.
        - Insider Activity: Recent Form 4 filings.
 
     Output: Strictly return a valid JSON object matching this structure. 
@@ -162,7 +162,14 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
           "alternativeData": { "webTrafficTrend": 0, "appDownloadTrend": 0, "searchVolumeTrend": 0, "verdict": "BULLISH", "insight": "" }, 
           "institutionalOwnership": { "totalOwnership": 0, "crowdednessScore": 0, "smartMoneyFlow": "INFLOW", "topHolders": [{ "name": "", "shares": "", "change": 0, "date": "" }] } 
       },
-      "supplyChain": { "suppliers": [], "customers": [], "risks": "" },
+      "supplyChain": { 
+          "network": [
+            { "name": "Key Supplier Inc", "type": "Supplier", "sector": "Semiconductors", "criticalityScore": 9, "description": "Sole source of GPU dies" },
+            { "name": "Big Customer Corp", "type": "Customer", "sector": "Cloud", "criticalityScore": 7, "description": "15% of Revenue" }
+          ], 
+          "risks": ["Geopolitical risk in Taiwan", "Concentration risk"], 
+          "geographicExposure": "High dependence on APAC manufacturing"
+      },
       "earningsQuality": { "score": 0, "redFlags": [], "accountingNotes": "" },
       "insiderActivity": [{ "name": "", "role": "", "type": "BUY", "amount": "", "date": "" }],
       "aiRisk": { "riskScore": 0, "riskLevel": "LOW", "replacementProbability": 0, "innovationLag": "LEADER", "vibecodeSensitivity": 0, "summary": "", "threats": [], "mitigants": [] },
@@ -173,7 +180,7 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
       "financialRatios": { "profitability": [{ "name": "ROIC", "value": "0%" }], "liquidity": [{ "name": "Current Ratio", "value": "0x" }], "solvency": [{ "name": "Debt/Equity", "value": "0x" }], "efficiency": [{ "name": "Asset Turnover", "value": "0x" }] },
       "dcf": { "wacc": 0.1, "terminalGrowthRate": 0.03, "enterpriseValue": 0, "equityValue": 0, "sharePriceTarget": 0, "upsideDownside": 0, "fcfProjections": [0,0,0,0,0] },
       "lbo": { "entryMultiple": 0, "exitMultiple": 0, "debtAmount": 0, "irr": 0, "moc": 0 },
-      "valuationComps": [{ "ticker": "COMP", "evEbitda": 0, "evSales": 0, "pe": 0, "revenueGrowth": 0, "ebitdaMargin": 0, "netDebtEbitda": 0, "ruleOf40": 0 }],
+      "valuationComps": [{ "ticker": "COMP", "evEbitda": 0, "evSales": 0, "pe": 0, "revenueGrowth": 0, "ebitdaMargin": 0, "grossMargin": 0, "netDebtEbitda": 0, "ruleOf40": 0, "marketCap": 0 }],
       "precedentTransactions": [{ "date": "2023-01-01", "target": "Target", "acquirer": "Buyer", "dealSize": 0, "evEbitda": 0, "premium": 0 }]
     }
   `;

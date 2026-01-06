@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert, Presentation, X } from 'lucide-react';
+import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert, Presentation, X, Play, ChevronLeft, ChevronRight, Maximize2, RefreshCw } from 'lucide-react';
 import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage, generateMarketDeckSlide } from '../services/geminiService';
 import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp, SupplyChain } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart, ReferenceLine } from 'recharts';
@@ -8,6 +8,52 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 // --- QUOTA CONSTANTS ---
 const SEARCH_LIMIT = 10;
 const QUOTA_STORAGE_KEY = 'apex_station_metadata';
+
+// --- INDEXED DB UTILS FOR SLIDE STORAGE ---
+const DB_NAME = 'ApexDeckStorage';
+const DB_VERSION = 1;
+const STORE_NAME = 'decks';
+
+const DeckStorage = {
+    open: () => {
+        return new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = (event: any) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'ticker' });
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+    save: async (ticker: string, slides: any[]) => {
+        try {
+            const db = await DeckStorage.open();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put({ ticker, slides, timestamp: Date.now() });
+        } catch (e) {
+            console.error("Failed to save deck to DB", e);
+        }
+    },
+    load: async (ticker: string) => {
+        try {
+            const db = await DeckStorage.open();
+            return new Promise<any[]>((resolve) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.get(ticker);
+                request.onsuccess = () => resolve(request.result?.slides || null);
+                request.onerror = () => resolve([]);
+            });
+        } catch (e) {
+            console.error("Failed to load deck from DB", e);
+            return null;
+        }
+    }
+};
 
 // --- MOCK DATA FOR DASHBOARD ---
 
@@ -1016,6 +1062,60 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl" }: any
   );
 };
 
+const PresentationView = ({ slides, onClose }: { slides: any[], onClose: () => void }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const validSlides = slides.filter(s => s.status === 'done' && s.url);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowRight') setCurrentIndex(prev => (prev + 1) % validSlides.length);
+            if (e.key === 'ArrowLeft') setCurrentIndex(prev => (prev - 1 + validSlides.length) % validSlides.length);
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [validSlides.length, onClose]);
+
+    if (validSlides.length === 0) return null;
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center">
+             <div className="absolute top-4 right-4 z-50 flex gap-4">
+                 <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full transition-colors">
+                     <X size={24} />
+                 </button>
+             </div>
+             
+             <div className="relative w-full h-full flex items-center justify-center p-8">
+                 <button 
+                    onClick={() => setCurrentIndex(prev => (prev - 1 + validSlides.length) % validSlides.length)}
+                    className="absolute left-4 text-slate-500 hover:text-cyan-400 transition-colors p-4 z-10"
+                 >
+                     <ChevronLeft size={48} />
+                 </button>
+                 
+                 <div className="max-w-[95vw] max-h-[90vh] relative">
+                     <img 
+                        src={validSlides[currentIndex].url} 
+                        alt={validSlides[currentIndex].title} 
+                        className="max-h-[85vh] w-auto border border-slate-800 shadow-2xl" 
+                     />
+                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur text-white px-4 py-2 rounded-full border border-slate-700 text-sm font-bold tracking-widest">
+                         {validSlides[currentIndex].title} ({currentIndex + 1} / {validSlides.length})
+                     </div>
+                 </div>
+
+                 <button 
+                    onClick={() => setCurrentIndex(prev => (prev + 1) % validSlides.length)}
+                    className="absolute right-4 text-slate-500 hover:text-cyan-400 transition-colors p-4 z-10"
+                 >
+                     <ChevronRight size={48} />
+                 </button>
+             </div>
+        </div>
+    );
+};
+
 // --- MARKET BENCH VIEW ---
 
 const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
@@ -1027,6 +1127,48 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
         { id: 5, type: 'RISK', title: 'Risk & Catalysts', url: null, status: 'idle' }
     ]);
     const [selectedSlide, setSelectedSlide] = useState<string | null>(null);
+    const [isPresentationMode, setIsPresentationMode] = useState(false);
+    
+    // Load persisted slides on mount
+    useEffect(() => {
+        const load = async () => {
+             const savedSlides = await DeckStorage.load(analysis.profile.ticker);
+             if (savedSlides && savedSlides.length > 0) {
+                 // Merge saved with default to keep structure in case of schema changes
+                 setSlides(prev => {
+                     return prev.map(p => {
+                         const saved = savedSlides.find((s: any) => s.id === p.id);
+                         return saved ? saved : p;
+                     })
+                 });
+             }
+        };
+        load();
+    }, [analysis.profile.ticker]);
+
+    // Persist slides on change
+    useEffect(() => {
+        if (slides.some(s => s.status === 'done')) {
+            DeckStorage.save(analysis.profile.ticker, slides);
+        }
+    }, [slides, analysis.profile.ticker]);
+
+    const regenerateSlide = async (id: number) => {
+        setSlides(prev => prev.map(s => s.id === id ? { ...s, status: 'loading' } : s));
+        const slide = slides.find(s => s.id === id);
+        if (!slide) return;
+        
+        try {
+            const url = await generateMarketDeckSlide(analysis.profile.ticker, slide.type, analysis);
+            if (url) {
+                setSlides(prev => prev.map(s => s.id === id ? { ...s, url, status: 'done' } : s));
+            } else {
+                 setSlides(prev => prev.map(s => s.id === id ? { ...s, status: 'error' } : s));
+            }
+        } catch (e) {
+             setSlides(prev => prev.map(s => s.id === id ? { ...s, status: 'error' } : s));
+        }
+    }
 
     const generateDeck = async () => {
         // Sequentially generate to manage load
@@ -1049,22 +1191,57 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
         }
     }
 
+    const downloadAllSlides = () => {
+        const validSlides = slides.filter(s => s.status === 'done' && s.url);
+        if (validSlides.length === 0) return;
+
+        // Trigger downloads sequentially to avoid browser blocking
+        validSlides.forEach((slide, index) => {
+            setTimeout(() => {
+                const link = document.createElement('a');
+                link.href = slide.url!;
+                link.download = `${analysis.profile.ticker}_${slide.type}_Slide.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }, index * 800);
+        });
+    }
+
     return (
         <div className="space-y-6">
             <Panel title="Market Bench // Automated Pitch Deck" icon={Presentation}>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-white">Institutional Market Deck</h2>
                         <p className="text-xs text-slate-400">Generate a 5-page board-ready presentation using high-fidelity generative rendering.</p>
                     </div>
-                    <button 
-                        onClick={generateDeck} 
-                        disabled={slides.some(s => s.status === 'loading')}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded font-bold uppercase text-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {slides.some(s => s.status === 'loading') ? <span className="animate-spin"><Cpu size={14} /></span> : <Sparkles size={14} />}
-                        {slides.some(s => s.status === 'done') ? 'Regenerate Deck' : 'Generate Market Deck'}
-                    </button>
+                    <div className="flex gap-2">
+                        {slides.some(s => s.status === 'done') && (
+                            <>
+                                <button 
+                                    onClick={() => setIsPresentationMode(true)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold uppercase text-xs flex items-center gap-2 border border-slate-700"
+                                >
+                                    <Play size={14} /> Play Deck
+                                </button>
+                                <button 
+                                    onClick={downloadAllSlides}
+                                    className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded font-bold uppercase text-xs flex items-center gap-2 border border-slate-700"
+                                >
+                                    <Download size={14} /> Download All
+                                </button>
+                            </>
+                        )}
+                        <button 
+                            onClick={generateDeck} 
+                            disabled={slides.some(s => s.status === 'loading')}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded font-bold uppercase text-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {slides.some(s => s.status === 'loading') ? <span className="animate-spin"><Cpu size={14} /></span> : <Sparkles size={14} />}
+                            {slides.some(s => s.status === 'done') ? 'Update Deck' : 'Generate Market Deck'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1075,6 +1252,12 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
                                     <Presentation size={32} className="mb-2 opacity-50" />
                                     <span className="text-xs uppercase font-bold tracking-widest">Waiting to Generate</span>
                                     <span className="text-[10px] mt-1 text-slate-700">Slide {slide.id}: {slide.title}</span>
+                                    <button 
+                                        onClick={() => regenerateSlide(slide.id)}
+                                        className="mt-4 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded text-[10px] font-bold uppercase border border-slate-700"
+                                    >
+                                        Generate Slide
+                                    </button>
                                 </div>
                             )}
                             {slide.status === 'loading' && (
@@ -1084,9 +1267,15 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
                                 </div>
                             )}
                             {slide.status === 'error' && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500 bg-black/80">
                                     <AlertTriangle size={32} className="mb-2" />
-                                    <span className="text-xs font-bold">Generation Failed</span>
+                                    <span className="text-xs font-bold mb-2">Generation Failed</span>
+                                    <button 
+                                        onClick={() => regenerateSlide(slide.id)}
+                                        className="text-xs flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded border border-slate-700 transition-colors"
+                                    >
+                                        <RefreshCw size={12} /> Retry
+                                    </button>
                                 </div>
                             )}
                             {slide.url && (
@@ -1096,15 +1285,25 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
                                         alt={slide.title} 
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-end p-4">
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end p-4">
                                         <div className="w-full flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
                                             <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded backdrop-blur-md">{slide.title}</span>
-                                            <button 
-                                                onClick={() => setSelectedSlide(slide.url)}
-                                                className="bg-cyan-500 text-black p-1.5 rounded-full hover:bg-white transition-colors"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => regenerateSlide(slide.id)}
+                                                    className="bg-slate-800 text-white p-2 rounded-full hover:bg-cyan-600 transition-colors border border-slate-600 hover:border-cyan-400"
+                                                    title="Regenerate Slide"
+                                                >
+                                                    <RefreshCw size={14} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => setSelectedSlide(slide.url)}
+                                                    className="bg-cyan-500 text-black p-2 rounded-full hover:bg-white transition-colors"
+                                                    title="View Fullscreen"
+                                                >
+                                                    <Maximize2 size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </>
@@ -1132,6 +1331,10 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
                     </div>
                 </div>
             </Modal>
+
+            {isPresentationMode && (
+                <PresentationView slides={slides} onClose={() => setIsPresentationMode(false)} />
+            )}
         </div>
     )
 }

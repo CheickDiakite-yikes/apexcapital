@@ -112,7 +112,9 @@ export const generateMarketDeckSlide = async (
   }
 
   const prompt = `
-    Create a photorealistic, high-fidelity investment banking presentation slide (16:9 aspect ratio).
+    Create a flat, 2D, high-fidelity digital export of an investment banking presentation slide (16:9 aspect ratio).
+    
+    CRITICAL INSTRUCTION: Do NOT render a monitor, laptop, TV screen, or physical device. Do NOT use 3D perspective, tilt, or camera depth of field. This must be a direct digital image of the slide content itself, filling the entire canvas perfectly from edge to edge.
     
     SLIDE TITLE: "${slideTitle}"
     
@@ -125,9 +127,9 @@ export const generateMarketDeckSlide = async (
     - COLOR PALETTE: Cyan/Teal (#06b6d4) for primary data, Slate (#94a3b8) for secondary, White/Grey for text. Green/Red for financial deltas.
     - LAYOUT: Professional Management Consulting / Investment Banking grid. Header with logo placeholder. Footer with page number and confidential disclaimer.
     - CONTENT: The slide MUST contain rich data visualizations (bar charts, line graphs, waterfall charts) and structured data tables based on the DATA CONTEXT provided. Text should be legible, professional font (Sans-Serif).
-    - QUALITY: 4K resolution, sharp text, no blurring. It should look exactly like a screenshot of a premium Wall Street pitch deck.
+    - QUALITY: 4K resolution, sharp text, no blurring, no artifacts.
     
-    Ensure the slide looks like a finished product ready for a client meeting.
+    The output must look like a clean PDF export of a slide, NOT a photograph.
   `;
 
   try {

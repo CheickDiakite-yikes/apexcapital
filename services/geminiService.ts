@@ -42,6 +42,122 @@ export const generateInsightImage = async (imagePrompt: string): Promise<string 
   }
 }
 
+export const generateMarketDeckSlide = async (
+  ticker: string, 
+  slideType: 'SUMMARY' | 'COMPS' | 'FINANCIALS' | 'LBO' | 'RISK', 
+  contextData: FullAnalysis
+): Promise<string | null> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  let promptContext = "";
+  let slideTitle = "";
+  
+  // Serialize relevant data for the prompt to keep it concise but informative
+  switch(slideType) {
+    case 'SUMMARY':
+      slideTitle = `Executive Summary & Investment Thesis: ${ticker}`;
+      promptContext = `
+        Target: ${contextData.profile.name} (${ticker})
+        Current Price: $${contextData.profile.price} | Rating: ${contextData.thesis.rating}
+        Price Target: $${contextData.thesis.targetPriceBase} (Upside/Downside implied)
+        Key Thesis: ${contextData.thesis.theBet}
+        Bull Case: ${contextData.thesis.bullCase.slice(0,3).join('. ')}
+        Bear Case: ${contextData.thesis.bearCase.slice(0,3).join('. ')}
+        Catalysts: ${contextData.thesis.catalysts.map(c => c.event).join(', ')}
+      `;
+      break;
+    case 'COMPS':
+      slideTitle = `Public Comparables & Valuation Benchmarks: ${ticker}`;
+      promptContext = `
+        Focus on Relative Valuation.
+        Target Metrics: EV/EBITDA, P/E, EV/Sales.
+        Peer Group Data to Visualize: 
+        ${contextData.valuationComps.slice(0, 5).map((c: any) => `${c.ticker} (EV/EBITDA: ${c.evEbitda}x, Growth: ${c.revenueGrowth}%)`).join(' | ')}
+        Visuals needed: Trading Multiples Table and a Valuation "Football Field" chart showing the range.
+      `;
+      break;
+    case 'FINANCIALS':
+       slideTitle = `Financial Performance & Growth Trajectory: ${ticker}`;
+       promptContext = `
+         Revenue History: ${contextData.incomeStatement.rows[0].historical.join(', ')} -> Projection: ${contextData.incomeStatement.rows[0].projected.join(', ')}
+         EBITDA Margin Profile: ${contextData.financialRatios.profitability.find((r:any) => r.name.includes('EBITDA'))?.value || 'N/A'}
+         Key Balance Sheet Health: Cash vs Debt.
+         Visuals needed: Revenue & EBITDA bridge chart, Margin expansion graph.
+       `;
+       break;
+    case 'LBO':
+        slideTitle = `LBO Analysis & Returns Profile: ${ticker}`;
+        promptContext = `
+          Scenario: Leveraged Buyout Feasibility.
+          IRR (5-Yr): ${contextData.lbo.irr}%
+          Multiple of Capital (MoC): ${contextData.lbo.moc}x
+          Entry Multiple: ${contextData.lbo.entryMultiple}x
+          Leverage/Debt Capacity: ${contextData.lbo.debtAmount}
+          Visuals needed: Sources & Uses table, Returns Sensitivity table, Debt Paydown chart.
+        `;
+        break;
+     case 'RISK':
+        slideTitle = `Risk Matrix, AI Disruption & Catalysts: ${ticker}`;
+        promptContext = `
+          AI Displacement Score: ${contextData.aiRisk.riskScore}/100
+          Vibecode Sensitivity: ${contextData.aiRisk.vibecodeSensitivity}/100
+          Key Threats: ${contextData.aiRisk.threats.slice(0,3).join(', ')}
+          Mitigants: ${contextData.aiRisk.mitigants.slice(0,3).join(', ')}
+          Visuals needed: Risk Radar Chart, SWOT Analysis quadrant.
+        `;
+        break;
+  }
+
+  const prompt = `
+    Create a photorealistic, high-fidelity investment banking presentation slide (16:9 aspect ratio).
+    
+    SLIDE TITLE: "${slideTitle}"
+    
+    DATA CONTEXT:
+    ${promptContext}
+    
+    DESIGN SPECIFICATIONS:
+    - STYLE: "Apex Capital AI" Dark Mode Institutional.
+    - BACKGROUND: Deep slate/black (#020408) with subtle cyber-grid or abstract data texture.
+    - COLOR PALETTE: Cyan/Teal (#06b6d4) for primary data, Slate (#94a3b8) for secondary, White/Grey for text. Green/Red for financial deltas.
+    - LAYOUT: Professional Management Consulting / Investment Banking grid. Header with logo placeholder. Footer with page number and confidential disclaimer.
+    - CONTENT: The slide MUST contain rich data visualizations (bar charts, line graphs, waterfall charts) and structured data tables based on the DATA CONTEXT provided. Text should be legible, professional font (Sans-Serif).
+    - QUALITY: 4K resolution, sharp text, no blurring. It should look exactly like a screenshot of a premium Wall Street pitch deck.
+    
+    Ensure the slide looks like a finished product ready for a client meeting.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: {
+        parts: [{ text: prompt }],
+      },
+      config: {
+        imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "1K" 
+        }
+      },
+    });
+
+    if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+                return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+            }
+        }
+    }
+    return null;
+  } catch (e) {
+    console.error("Slide generation failed", e);
+    return null;
+  }
+}
+
 export const getBreakingNews = async (ticker: string): Promise<NewsItem[]> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) return [];

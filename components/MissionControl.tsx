@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert } from 'lucide-react';
-import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage } from '../services/geminiService';
+import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert, Presentation, X } from 'lucide-react';
+import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage, generateMarketDeckSlide } from '../services/geminiService';
 import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp, SupplyChain } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart, ReferenceLine } from 'recharts';
 
@@ -995,11 +995,11 @@ const NetworkGraph = ({ supplyChain }: { supplyChain: SupplyChain }) => {
   )
 }
 
-const Modal = ({ isOpen, onClose, title, children }: any) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-2xl" }: any) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-950 border border-cyan-500/50 w-full max-w-2xl shadow-[0_0_50px_rgba(6,182,212,0.2)]">
+      <div className={`bg-slate-950 border border-cyan-500/50 w-full ${maxWidth} shadow-[0_0_50px_rgba(6,182,212,0.2)]`}>
         <div className="flex justify-between items-center p-4 border-b border-slate-800">
            <h3 className="text-cyan-400 font-bold uppercase tracking-widest flex items-center gap-2">
               <Terminal size={16} /> {title}
@@ -1008,7 +1008,7 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
               <Plus size={24} className="rotate-45" />
            </button>
         </div>
-        <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="p-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
            {children}
         </div>
       </div>
@@ -1016,135 +1016,211 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
   );
 };
 
-const FloatingAgent = ({ onClick }: { onClick: () => void }) => (
-  <button 
-    onClick={onClick}
-    className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-cyan-600 hover:bg-cyan-500 rounded-full flex items-center justify-center shadow-lg shadow-cyan-900/50 transition-all hover:scale-110 group"
-  >
-    <Terminal size={24} className="text-white" />
-    <span className="absolute -top-10 right-0 bg-black text-xs text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700">
-       Ask Alpha Agent
-    </span>
-  </button>
-);
+// --- MARKET BENCH VIEW ---
 
-const AlphaTerminal = ({ analysis }: { analysis: FullAnalysis }) => {
+const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
+    const [slides, setSlides] = useState<{id: number, type: 'SUMMARY' | 'COMPS' | 'FINANCIALS' | 'LBO' | 'RISK', title: string, url: string | null, status: 'idle' | 'loading' | 'done' | 'error'}[]>([
+        { id: 1, type: 'SUMMARY', title: 'Executive Summary', url: null, status: 'idle' },
+        { id: 2, type: 'COMPS', title: 'Public Comps', url: null, status: 'idle' },
+        { id: 3, type: 'FINANCIALS', title: 'Financial Profile', url: null, status: 'idle' },
+        { id: 4, type: 'LBO', title: 'LBO & Valuation', url: null, status: 'idle' },
+        { id: 5, type: 'RISK', title: 'Risk & Catalysts', url: null, status: 'idle' }
+    ]);
+    const [selectedSlide, setSelectedSlide] = useState<string | null>(null);
+
+    const generateDeck = async () => {
+        // Sequentially generate to manage load
+        for (let i = 0; i < slides.length; i++) {
+            const slide = slides[i];
+            if (slide.status === 'done') continue;
+
+            setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'loading' } : s));
+            
+            try {
+                const url = await generateMarketDeckSlide(analysis.profile.ticker, slide.type, analysis);
+                if (url) {
+                    setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, url, status: 'done' } : s));
+                } else {
+                    setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'error' } : s));
+                }
+            } catch (e) {
+                 setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'error' } : s));
+            }
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <Panel title="Market Bench // Automated Pitch Deck" icon={Presentation}>
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold text-white">Institutional Market Deck</h2>
+                        <p className="text-xs text-slate-400">Generate a 5-page board-ready presentation using high-fidelity generative rendering.</p>
+                    </div>
+                    <button 
+                        onClick={generateDeck} 
+                        disabled={slides.some(s => s.status === 'loading')}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded font-bold uppercase text-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {slides.some(s => s.status === 'loading') ? <span className="animate-spin"><Cpu size={14} /></span> : <Sparkles size={14} />}
+                        {slides.some(s => s.status === 'done') ? 'Regenerate Deck' : 'Generate Market Deck'}
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {slides.map((slide) => (
+                        <div key={slide.id} className="group relative aspect-video bg-slate-950 border border-slate-800 rounded-lg overflow-hidden hover:border-cyan-500 transition-all shadow-lg">
+                            {slide.status === 'idle' && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
+                                    <Presentation size={32} className="mb-2 opacity-50" />
+                                    <span className="text-xs uppercase font-bold tracking-widest">Waiting to Generate</span>
+                                    <span className="text-[10px] mt-1 text-slate-700">Slide {slide.id}: {slide.title}</span>
+                                </div>
+                            )}
+                            {slide.status === 'loading' && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/50 backdrop-blur-sm z-10">
+                                    <div className="w-8 h-8 border-4 border-cyan-900/50 border-t-cyan-500 rounded-full animate-spin mb-3"></div>
+                                    <span className="text-xs text-cyan-400 font-mono animate-pulse">Rendering Slide {slide.id}...</span>
+                                </div>
+                            )}
+                            {slide.status === 'error' && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
+                                    <AlertTriangle size={32} className="mb-2" />
+                                    <span className="text-xs font-bold">Generation Failed</span>
+                                </div>
+                            )}
+                            {slide.url && (
+                                <>
+                                    <img 
+                                        src={slide.url} 
+                                        alt={slide.title} 
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-end p-4">
+                                        <div className="w-full flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
+                                            <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded backdrop-blur-md">{slide.title}</span>
+                                            <button 
+                                                onClick={() => setSelectedSlide(slide.url)}
+                                                className="bg-cyan-500 text-black p-1.5 rounded-full hover:bg-white transition-colors"
+                                            >
+                                                <Eye size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </Panel>
+
+            <Modal 
+                isOpen={!!selectedSlide} 
+                onClose={() => setSelectedSlide(null)} 
+                title="Market Bench Presentation View"
+                maxWidth="max-w-[90vw]"
+            >
+                <div className="flex flex-col items-center">
+                    {selectedSlide && (
+                        <img src={selectedSlide} alt="Presentation Slide" className="w-full h-auto max-h-[80vh] object-contain border border-slate-700 shadow-2xl" />
+                    )}
+                    <div className="mt-4 flex gap-4">
+                        <button onClick={() => setSelectedSlide(null)} className="px-6 py-2 bg-slate-800 text-white rounded hover:bg-slate-700 text-xs uppercase font-bold">Close View</button>
+                        <a href={selectedSlide || '#'} download="market_deck_slide.png" className="px-6 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-500 text-xs uppercase font-bold flex items-center gap-2">
+                            <Download size={14} /> Download Slide
+                        </a>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    )
+}
+
+const AlphaTerminal = ({ context, onClose }: { context: FullAnalysis, onClose: () => void }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'AI', content: `Alpha System Online. I have full context on ${analysis.profile.name}. Query me regarding valuation, risks, or strategy.`, timestamp: Date.now() }
+    { role: 'AI', content: `Alpha Agent Online. I have full context on ${context.profile.ticker}. Ask me about valuation, risks, or specific data points.`, timestamp: Date.now() }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const QUICK_ACTIONS = [
-    "Show ESG score & risk factors",
-    "Summarize recent M&A activity",
-    "Analyze management compensation",
-    "Identify key insider trading patterns",
-    "Break down revenue by region",
-    "List top institutional holders"
-  ];
-
   useEffect(() => {
-     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
-    
-    const userMsg = input;
+
+    const userMsg: ChatMessage = { role: 'USER', content: input, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setShowQuickActions(false);
-    setMessages(prev => [...prev, { role: 'USER', content: userMsg, timestamp: Date.now() }]);
     setLoading(true);
-    
+
     try {
-       const response = await askAlphaAgent(userMsg, analysis);
-       setMessages(prev => [...prev, { role: 'AI', content: response, timestamp: Date.now() }]);
+      const response = await askAlphaAgent(userMsg.content, context);
+      const aiMsg: ChatMessage = { role: 'AI', content: response, timestamp: Date.now() };
+      setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
-       setMessages(prev => [...prev, { role: 'AI', content: "Connection disrupted.", timestamp: Date.now() }]);
+      const errorMsg: ChatMessage = { role: 'AI', content: "Connection interrupted. Retrying uplink...", timestamp: Date.now() };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
-       setLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleQuickAction = (action: string) => {
-      setInput(action);
-      setShowQuickActions(false);
-  };
-
   return (
-    <div className="flex flex-col h-full bg-black border-t border-cyan-500/50 font-mono text-sm relative">
-       <div className="bg-cyan-950/30 px-4 py-2 text-xs text-cyan-400 border-b border-cyan-900/30 flex justify-between items-center">
-          <span>ALPHA_AGENT_V3 // CONNECTED TO {analysis.profile.ticker}</span>
-          <span className="flex items-center gap-2"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> LIVE</span>
-       </div>
-       
-       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-black/90">
-          {messages.map((msg, i) => (
-             <div key={i} className={`flex ${msg.role === 'USER' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded border ${
-                   msg.role === 'USER' 
-                   ? 'bg-slate-900 border-slate-700 text-slate-200 rounded-tr-none' 
-                   : 'bg-cyan-950/20 border-cyan-900/50 text-cyan-100 rounded-tl-none'
-                }`}>
-                   <div className="text-[10px] mb-1 opacity-50">{msg.role === 'USER' ? 'OPERATOR' : 'ALPHA'}</div>
-                   {msg.content}
+    <div className="fixed bottom-0 right-4 w-96 h-[500px] z-50 shadow-2xl animate-slide-up flex flex-col bg-black border border-cyan-500">
+        <div className="flex justify-between items-center p-2 bg-cyan-900/20 border-b border-cyan-900/50">
+            <span className="text-xs font-bold text-cyan-400 flex items-center gap-2"><Terminal size={12}/> ALPHA_AGENT // {context.profile.ticker}</span>
+            <button onClick={onClose}><X size={14} className="text-slate-500 hover:text-white" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4" ref={scrollRef}>
+            {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'USER' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-3 rounded text-xs font-mono leading-relaxed ${
+                        msg.role === 'USER' ? 'bg-cyan-900/30 text-cyan-100 border border-cyan-800' : 'bg-slate-900 text-slate-300 border border-slate-800'
+                    }`}>
+                        {msg.content}
+                    </div>
                 </div>
-             </div>
-          ))}
-          {loading && (
-             <div className="flex justify-start">
-                <div className="bg-cyan-950/20 border border-cyan-900/50 text-cyan-400 p-3 rounded rounded-tl-none text-xs animate-pulse">
-                   PROCESSING...
-                </div>
-             </div>
-          )}
-          <div ref={scrollRef} />
-       </div>
-       
-       <form onSubmit={handleSend} className="p-2 bg-slate-900 flex gap-2 border-t border-slate-800 relative">
-          {showQuickActions && (
-            <div className="absolute bottom-full left-0 mb-1 ml-2 w-64 bg-slate-900 border border-cyan-900 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] z-50 flex flex-col animate-fade-in">
-                <div className="p-2 text-[10px] text-slate-500 uppercase font-bold border-b border-slate-800 bg-slate-950">Quick Actions</div>
-                {QUICK_ACTIONS.map((action, i) => (
-                    <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleQuickAction(action)}
-                        className="text-left px-3 py-2 text-slate-300 hover:bg-cyan-900/30 hover:text-cyan-400 transition-colors truncate border-b border-slate-800/50 last:border-0 text-xs"
-                    >
-                        {action}
-                    </button>
-                ))}
+            ))}
+            {loading && (
+                 <div className="flex justify-start">
+                    <div className="bg-slate-900 text-cyan-400 p-2 rounded text-xs font-mono border border-slate-800 animate-pulse">
+                        Analyzing...
+                    </div>
+                 </div>
+            )}
+        </div>
+        <form onSubmit={handleSend} className="p-2 border-t border-slate-800 bg-slate-900/50">
+            <div className="flex gap-2">
+                <input 
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Query Alpha..."
+                    className="flex-1 bg-black border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-cyan-500 focus:outline-none font-mono"
+                />
+                <button type="submit" disabled={loading} className="bg-cyan-900/50 text-cyan-400 p-1.5 rounded hover:bg-cyan-800 transition-colors disabled:opacity-50">
+                    <Send size={14} />
+                </button>
             </div>
-          )}
-
-          <button 
-            type="button" 
-            onClick={() => setShowQuickActions(!showQuickActions)}
-            className={`px-3 transition-colors rounded flex items-center justify-center ${showQuickActions ? 'text-cyan-400 bg-cyan-900/30' : 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800'}`}
-            title="Quick Actions"
-          >
-            <Zap size={14} />
-          </button>
-
-          <input 
-             type="text" 
-             value={input}
-             onChange={e => setInput(e.target.value)}
-             placeholder="Enter command..." 
-             className="flex-1 bg-black border border-slate-700 text-white px-3 py-2 focus:border-cyan-500 focus:outline-none text-xs"
-          />
-          <button type="submit" disabled={loading} className="bg-cyan-900 hover:bg-cyan-800 text-cyan-400 px-4 py-2 border border-cyan-700 disabled:opacity-50">
-             <Send size={14} />
-          </button>
-       </form>
+        </form>
     </div>
   );
 };
+
+const FloatingAgent = ({ onClick }: { onClick: () => void }) => (
+  <button 
+    onClick={onClick}
+    className="fixed bottom-8 right-8 w-14 h-14 bg-cyan-600 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.5)] hover:bg-cyan-500 transition-all hover:scale-110 z-40 group"
+  >
+    <div className="absolute inset-0 rounded-full border border-cyan-400 animate-ping opacity-20"></div>
+    <Terminal className="text-white group-hover:rotate-12 transition-transform" size={24} />
+  </button>
+);
 
 // --- Main Component ---
 
@@ -1153,7 +1229,7 @@ export default function MissionControl() {
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [data, setData] = useState<FullAnalysis | null>(null);
   const [logs, setLogs] = useState<AgentLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'THESIS' | 'FINANCIALS' | 'VALUATION' | 'AI_RISK' | 'COMPS' | 'ALPHA' | 'DEEP_DIVE' | 'REPORT'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'THESIS' | 'FINANCIALS' | 'VALUATION' | 'AI_RISK' | 'COMPS' | 'ALPHA' | 'DEEP_DIVE' | 'MARKET_BENCH' | 'REPORT'>('OVERVIEW');
   const [financialView, setFinancialView] = useState<'INCOME' | 'BALANCE' | 'CASH' | 'RATIOS'>('INCOME');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showTerminal, setShowTerminal] = useState(false);
@@ -1374,7 +1450,7 @@ export default function MissionControl() {
           </div>
 
           <div className="flex gap-2 border-b border-cyan-900/50 overflow-x-auto">
-             {['OVERVIEW', 'THESIS', 'AI_RISK', 'FINANCIALS', 'VALUATION', 'COMPS', 'ALPHA', 'DEEP_DIVE', 'REPORT'].map((tab) => (
+             {['OVERVIEW', 'THESIS', 'AI_RISK', 'FINANCIALS', 'VALUATION', 'COMPS', 'ALPHA', 'DEEP_DIVE', 'MARKET_BENCH', 'REPORT'].map((tab) => (
                <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -1393,6 +1469,8 @@ export default function MissionControl() {
           <div className="space-y-8">
             {activeTab === 'REPORT' ? (
                 <ResearchReport data={data} />
+            ) : activeTab === 'MARKET_BENCH' ? (
+                <MarketBenchView analysis={data} />
             ) : (
             <>
             <div className="w-full space-y-6">
@@ -1742,3 +1820,58 @@ export default function MissionControl() {
       )}
 
       <Modal isOpen={activeModal === 'SUPPLY_CHAIN'} onClose={() => setActiveModal(null)} title="Deep Supply Chain Analysis">
+          <div className="h-[60vh] flex flex-col items-center justify-center text-center">
+            <h3 className="text-cyan-400 font-bold mb-2">Network Topology Visualizer</h3>
+            <p className="text-slate-500 text-sm max-w-md">Detailed breakdown of Tier-1 and Tier-2 suppliers with geopolitical risk overlays.</p>
+            <div className="mt-8 grid grid-cols-2 gap-4 w-full text-left text-xs font-mono">
+                {data?.supplyChain.network.map((node, i) => (
+                    <div key={i} className="bg-slate-900 p-3 border border-slate-800 rounded flex justify-between">
+                        <span>{node.name}</span>
+                        <span className="text-cyan-500">{node.type}</span>
+                    </div>
+                ))}
+            </div>
+          </div>
+      </Modal>
+
+      <Modal isOpen={activeModal === 'FORENSICS'} onClose={() => setActiveModal(null)} title="Forensic Accounting Report">
+           <div className="space-y-6 font-mono text-sm">
+               <div className="bg-slate-900/50 p-4 border-l-4 border-cyan-500">
+                   <h4 className="text-xs uppercase text-slate-500 mb-1">Accounting Notes</h4>
+                   <p className="text-slate-300">{data?.earningsQuality.accountingNotes}</p>
+               </div>
+               
+               <div>
+                   <h4 className="text-xs uppercase text-red-500 mb-2 font-bold">Red Flags Detected</h4>
+                   <ul className="space-y-2">
+                       {data?.earningsQuality.redFlags.map((flag, i) => (
+                           <li key={i} className="flex gap-2 items-start bg-red-950/20 p-2 rounded border border-red-900/30 text-red-300">
+                               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                               {flag}
+                           </li>
+                       ))}
+                   </ul>
+               </div>
+
+               <div>
+                   <h4 className="text-xs uppercase text-slate-500 mb-2 font-bold">Beneish M-Score Components</h4>
+                   <div className="grid grid-cols-2 gap-4">
+                       <div className="bg-slate-900 p-2 flex justify-between"><span>DSRI (Receivables)</span> <span className="text-green-400">0.98 (Safe)</span></div>
+                       <div className="bg-slate-900 p-2 flex justify-between"><span>GMI (Gross Margin)</span> <span className="text-yellow-400">1.02 (Watch)</span></div>
+                       <div className="bg-slate-900 p-2 flex justify-between"><span>AQI (Asset Quality)</span> <span className="text-green-400">0.95 (Safe)</span></div>
+                       <div className="bg-slate-900 p-2 flex justify-between"><span>SGI (Sales Growth)</span> <span className="text-slate-400">1.15 (Normal)</span></div>
+                   </div>
+               </div>
+           </div>
+      </Modal>
+
+      {showTerminal && data && (
+        <AlphaTerminal context={data} onClose={() => setShowTerminal(false)} />
+      )}
+
+      {status === AnalysisStatus.COMPLETE && data && (
+         <FloatingAgent onClick={() => setShowTerminal(true)} />
+      )}
+    </div>
+  );
+}

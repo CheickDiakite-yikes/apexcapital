@@ -204,6 +204,8 @@ export interface ChatMessage {
   role: 'USER' | 'AI';
   content: string;
   timestamp: number;
+  sources?: string[];
+  isThinking?: boolean;
 }
 
 export interface ValuationComp {

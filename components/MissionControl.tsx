@@ -1,9 +1,11 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Search, Zap, BarChart3, PieChart, Lock, Globe, Cpu, TrendingUp, AlertTriangle, Link as LinkIcon, FileText, Layers, Percent, Target, Shield, Briefcase, Calendar, ArrowRight, Radio, Newspaper, Terminal, Send, Network, Microscope, ArrowUpRight, ArrowDownRight, Plus, User, ScatterChart as ScatterIcon, Download, Printer, Sparkles, Save, Radar, BrainCircuit, History, Table, Clock, MoveUpRight, MoveDownRight, Smartphone, Eye, Users, Gauge, BarChart4, ShieldAlert, Presentation, X, Play, ChevronLeft, ChevronRight, Maximize2, RefreshCw } from 'lucide-react';
-import { analyzeCompany, getBreakingNews, askAlphaAgent, generateInsightImage, generateMarketDeckSlide } from '../services/geminiService';
+import { analyzeCompany, getBreakingNews, generateInsightImage, generateMarketDeckSlide, createAlphaSession } from '../services/geminiService';
 import { AnalysisStatus, FullAnalysis, AgentLog, Statement, FinancialRatios, InvestmentThesis, NewsItem, ChatMessage, ResearchMemo, Ratio, StationQuota, ValuationComp, SupplyChain } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend, ComposedChart, ReferenceLine } from 'recharts';
+import { Chat, GenerateContentResponse } from "@google/genai";
 
 // --- QUOTA CONSTANTS ---
 const SEARCH_LIMIT = 10;
@@ -1339,23 +1341,87 @@ const MarketBenchView = ({ analysis }: { analysis: FullAnalysis }) => {
     )
 }
 
-const AlphaTerminal = ({ context, onClose }: { context: FullAnalysis, onClose: () => void }) => {
+// --- HELPER FOR MARKDOWN ---
+const formatInline = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i} className="font-bold text-cyan-200">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+const MarkdownRenderer = ({ content }: { content: string }) => {
+    if (!content) return null;
+    const lines = content.split('\n');
+    return (
+        <div className="space-y-2 text-xs leading-relaxed font-sans">
+            {lines.map((line, i) => {
+                const trimmed = line.trim();
+                if (!trimmed) return <div key={i} className="h-2" />;
+                
+                if (trimmed.startsWith('### ')) {
+                    return <h3 key={i} className="text-sm font-bold text-cyan-400 mt-2">{formatInline(trimmed.slice(4))}</h3>;
+                }
+                if (trimmed.startsWith('## ')) {
+                    return <h2 key={i} className="text-sm font-bold text-cyan-400 mt-3 uppercase tracking-wider">{formatInline(trimmed.slice(3))}</h2>;
+                }
+                if (trimmed.startsWith('# ')) {
+                     return <h1 key={i} className="text-base font-bold text-cyan-400 mt-4 border-b border-cyan-900 pb-1">{formatInline(trimmed.slice(2))}</h1>;
+                }
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    return (
+                        <div key={i} className="flex gap-2 pl-2">
+                            <span className="text-cyan-500 mt-1.5 w-1 h-1 rounded-full bg-cyan-500 shrink-0 block"></span>
+                            <span className="text-slate-300">{formatInline(trimmed.replace(/^[\-\*]\s+/, ''))}</span>
+                        </div>
+                    );
+                }
+                return <p key={i} className="text-slate-300">{formatInline(line)}</p>;
+            })}
+        </div>
+    );
+};
+
+const AlphaTerminal = ({ context, onClose }: { context?: FullAnalysis, onClose: () => void }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'AI', content: `Alpha Agent Online. I have full context on ${context.profile.ticker}. Ask me about valuation, risks, or specific data points.`, timestamp: Date.now() }
+    { 
+        role: 'AI', 
+        content: context 
+            ? `Alpha Agent Online. I have full context on ${context.profile.ticker}. Ask me about valuation, risks, or specific data points.` 
+            : `Alpha Agent Online. Global Market Uplink Established. Ask me about market trends, specific tickers, or portfolio strategy.`, 
+        timestamp: Date.now() 
+    }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatSession = useRef<Chat | null>(null);
+
+  // Initialize Session
+  useEffect(() => {
+    if (!chatSession.current) {
+        try {
+            chatSession.current = createAlphaSession(context);
+        } catch (e) {
+            console.error("Failed to init chat session", e);
+        }
+    } else {
+        // If context changes (e.g. from global to specific), re-init
+        chatSession.current = createAlphaSession(context);
+    }
+  }, [context]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || !chatSession.current) return;
 
     const userMsg: ChatMessage = { role: 'USER', content: input, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
@@ -1363,52 +1429,143 @@ const AlphaTerminal = ({ context, onClose }: { context: FullAnalysis, onClose: (
     setLoading(true);
 
     try {
-      const response = await askAlphaAgent(userMsg.content, context);
-      const aiMsg: ChatMessage = { role: 'AI', content: response, timestamp: Date.now() };
-      setMessages(prev => [...prev, aiMsg]);
+      // Add placeholder for streaming message
+      const aiMsgId = Date.now();
+      setMessages(prev => [...prev, { role: 'AI', content: '', timestamp: aiMsgId, isThinking: true }]);
+      
+      const result = await chatSession.current.sendMessageStream({ message: userMsg.content });
+      
+      let fullText = '';
+      const collectedSources = new Set<string>();
+
+      for await (const chunk of result) {
+         // Cast chunk to GenerateContentResponse to access properties
+         const responseChunk = chunk as GenerateContentResponse;
+         
+         const textChunk = responseChunk.text;
+         if (textChunk) {
+             fullText += textChunk;
+         }
+
+         // Collect Sources from Grounding Metadata
+         if (responseChunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+             responseChunk.candidates[0].groundingMetadata.groundingChunks.forEach((c: any) => {
+                 if (c.web?.uri) collectedSources.add(c.web.uri);
+             });
+         }
+
+         setMessages(prev => prev.map(msg => 
+             msg.timestamp === aiMsgId 
+             ? { ...msg, content: fullText, isThinking: false, sources: Array.from(collectedSources) } 
+             : msg
+         ));
+      }
+
     } catch (err) {
-      const errorMsg: ChatMessage = { role: 'AI', content: "Connection interrupted. Retrying uplink...", timestamp: Date.now() };
+      console.error(err);
+      const errorMsg: ChatMessage = { role: 'AI', content: "Connection interrupted. Uplink unstable.", timestamp: Date.now() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleReset = () => {
+     chatSession.current = createAlphaSession(context);
+     setMessages([{ 
+        role: 'AI', 
+        content: `Session Reset. Ready for new instructions${context ? ` on ${context.profile.ticker}` : ''}.`, 
+        timestamp: Date.now() 
+     }]);
+  };
+
   return (
-    <div className="fixed bottom-0 right-4 w-96 h-[500px] z-50 shadow-2xl animate-slide-up flex flex-col bg-black border border-cyan-500">
-        <div className="flex justify-between items-center p-2 bg-cyan-900/20 border-b border-cyan-900/50">
-            <span className="text-xs font-bold text-cyan-400 flex items-center gap-2"><Terminal size={12}/> ALPHA_AGENT // {context.profile.ticker}</span>
-            <button onClick={onClose}><X size={14} className="text-slate-500 hover:text-white" /></button>
+    <div className="fixed bottom-0 right-4 w-[450px] h-[600px] z-50 shadow-2xl animate-slide-up flex flex-col bg-black border border-cyan-500 rounded-t-lg overflow-hidden">
+        <div className="flex justify-between items-center p-3 bg-cyan-950/80 border-b border-cyan-500 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+                <div className="relative">
+                    <Terminal size={14} className="text-cyan-400"/>
+                    <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                </div>
+                <div>
+                    <span className="text-xs font-bold text-white block">ALPHA_AGENT // {context?.profile.ticker || 'GLOBAL_NET'}</span>
+                    <span className="text-[9px] text-cyan-400 font-mono">GEMINI-3-FLASH // {context ? 'DEEP_CONTEXT' : 'MARKET_ACCESS'}</span>
+                </div>
+            </div>
+            <div className="flex gap-2">
+                 <button onClick={handleReset} title="Reset Session" className="text-slate-500 hover:text-cyan-400 transition-colors"><RefreshCw size={14} /></button>
+                 <button onClick={onClose}><X size={16} className="text-slate-500 hover:text-red-400 transition-colors" /></button>
+            </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4" ref={scrollRef}>
+        
+        {/* Chat Area */}
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-950/90" ref={scrollRef}>
             {messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'USER' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded text-xs font-mono leading-relaxed ${
-                        msg.role === 'USER' ? 'bg-cyan-900/30 text-cyan-100 border border-cyan-800' : 'bg-slate-900 text-slate-300 border border-slate-800'
+                <div key={i} className={`flex flex-col ${msg.role === 'USER' ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[85%] p-3 rounded-lg text-xs leading-relaxed font-sans shadow-lg ${
+                        msg.role === 'USER' 
+                        ? 'bg-cyan-900/30 text-cyan-50 border border-cyan-800 rounded-br-none' 
+                        : 'bg-slate-900 text-slate-300 border border-slate-800 rounded-bl-none'
                     }`}>
-                        {msg.content}
+                        {msg.isThinking && !msg.content ? (
+                            <div className="flex items-center gap-2 text-cyan-500 font-mono">
+                                <Cpu size={12} className="animate-spin" />
+                                <span className="animate-pulse">Thinking...</span>
+                            </div>
+                        ) : (
+                            msg.role === 'AI' ? (
+                                <MarkdownRenderer content={msg.content} />
+                            ) : (
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                            )
+                        )}
                     </div>
+                    
+                    {/* Source Citations */}
+                    {msg.sources && msg.sources.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1 max-w-[85%]">
+                            {msg.sources.slice(0, 3).map((source, idx) => (
+                                <a 
+                                    key={idx} 
+                                    href={source} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-[9px] bg-slate-900 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded hover:border-cyan-500 hover:text-cyan-400 transition-colors"
+                                >
+                                    <Globe size={8} /> {new URL(source).hostname.replace('www.', '')}
+                                </a>
+                            ))}
+                        </div>
+                    )}
+                    <span className="text-[9px] text-slate-600 mt-1 px-1">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 </div>
             ))}
-            {loading && (
-                 <div className="flex justify-start">
-                    <div className="bg-slate-900 text-cyan-400 p-2 rounded text-xs font-mono border border-slate-800 animate-pulse">
-                        Analyzing...
-                    </div>
-                 </div>
-            )}
         </div>
-        <form onSubmit={handleSend} className="p-2 border-t border-slate-800 bg-slate-900/50">
-            <div className="flex gap-2">
+
+        {/* Input Area */}
+        <form onSubmit={handleSend} className="p-3 border-t border-cyan-900/50 bg-black">
+            <div className="relative">
                 <input 
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Query Alpha..."
-                    className="flex-1 bg-black border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-cyan-500 focus:outline-none font-mono"
+                    disabled={loading}
+                    placeholder={loading ? "Alpha is processing..." : context ? "Ask complex questions (e.g. 'How does this affect valuation?')" : "Ask about markets, stocks, or strategy..."}
+                    className="w-full bg-slate-900/50 border border-slate-800 rounded px-3 py-2 text-xs text-white focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-900 font-mono pr-10 disabled:opacity-50"
                 />
-                <button type="submit" disabled={loading} className="bg-cyan-900/50 text-cyan-400 p-1.5 rounded hover:bg-cyan-800 transition-colors disabled:opacity-50">
+                <button 
+                    type="submit" 
+                    disabled={loading || !input.trim()} 
+                    className="absolute right-1 top-1 bottom-1 bg-cyan-900/20 text-cyan-500 w-8 flex items-center justify-center rounded hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-0"
+                >
                     <Send size={14} />
                 </button>
+            </div>
+            <div className="flex justify-between items-center mt-2 px-1">
+                <div className="flex items-center gap-2 text-[9px] text-slate-500 uppercase font-bold tracking-wider">
+                     <span className="flex items-center gap-1"><BrainCircuit size={10} className="text-purple-500" /> Reasoning</span>
+                     <span className="flex items-center gap-1"><Search size={10} className="text-blue-500" /> Web Access</span>
+                </div>
+                <div className="text-[9px] text-slate-600 font-mono">SECURE UPLINK ESTABLISHED</div>
             </div>
         </form>
     </div>
@@ -2068,11 +2225,12 @@ export default function MissionControl() {
            </div>
       </Modal>
 
-      {showTerminal && data && (
-        <AlphaTerminal context={data} onClose={() => setShowTerminal(false)} />
+      {showTerminal && (
+        <AlphaTerminal context={data || undefined} onClose={() => setShowTerminal(false)} />
       )}
 
-      {status === AnalysisStatus.COMPLETE && data && (
+      {/* Floating Agent - Always visible unless terminal is open */}
+      {!showTerminal && (
          <FloatingAgent onClick={() => setShowTerminal(true)} />
       )}
     </div>

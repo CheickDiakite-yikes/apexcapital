@@ -1,5 +1,6 @@
 
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, Chat } from "@google/genai";
 import { FullAnalysis, NewsItem } from "../types";
 
 const parseGeminiJSON = (text: string): any => {
@@ -12,6 +13,53 @@ const parseGeminiJSON = (text: string): any => {
     }
     
     return JSON.parse(cleanText.substring(firstBrace, lastBrace + 1));
+}
+
+export const createAlphaSession = (context?: FullAnalysis): Chat => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API Key missing");
+
+  const ai = new GoogleGenAI({ apiKey });
+  const currentDate = new Date().toLocaleDateString();
+  
+  const systemInstruction = context ? `
+        ROLE: You are "Alpha", the autonomous financial intelligence of the Apex Capital Terminal.
+        
+        PRIME DIRECTIVES:
+        1. ANALYSIS: You have deep context on the target company from the provided JSON. Use it to answer valuation, risk, and financial questions with extreme precision.
+        2. RESEARCH: If the user asks about recent news, competitors, macro events, or real-time prices not in your context, YOU MUST USE GOOGLE SEARCH.
+        3. REASONING: Use your thinking capabilities to connect disparate data points (e.g., "How does the latest Fed hike impact this specific DCF WACC?").
+        4. STYLE: Institutional, dense, high-conviction. Use Markdown tables and bullet points. You are a senior partner at a top-tier fund.
+        
+        TARGET CONTEXT:
+        ${JSON.stringify(context)}
+
+        CURRENT DATE: ${currentDate}
+      ` : `
+        ROLE: You are "Alpha", the autonomous financial intelligence of the Apex Capital Terminal.
+        
+        PRIME DIRECTIVES:
+        1. IDENTITY: You are a Global Macro Strategist and Senior Portfolio Manager. You act as a sovereign financial agent.
+        2. CAPABILITIES:
+           - You have access to real-time market data via Google Search.
+           - You can analyze specific tickers (e.g., "Thoughts on TSLA?"), discuss macro trends, and suggest trading strategies.
+           - You explain Apex Capital's methodology: "Cognitive Arbitrage", "Vibecode" (AI Displacement Risk), and Forensic Accounting.
+        3. EXECUTION:
+           - If a user asks about a stock you don't have context for, USE GOOGLE SEARCH to get price, news, and financials.
+           - If asked for recommendations ("Top stocks to buy?"), scan the market for high-alpha setups using Search.
+           - Maintain an institutional, high-conviction tone.
+        
+        CURRENT DATE: ${currentDate}
+      `;
+  
+  return ai.chats.create({
+    model: 'gemini-3-flash-preview',
+    config: {
+      systemInstruction,
+      tools: [{ googleSearch: {} }],
+      thinkingConfig: { thinkingBudget: 2048 }, 
+    }
+  });
 }
 
 export const generateInsightImage = async (imagePrompt: string): Promise<string | null> => {
@@ -215,6 +263,7 @@ export const askAlphaAgent = async (query: string, context: FullAnalysis): Promi
     User Query: "${query}"
     
     Context: ${context.profile.name} (${context.profile.ticker})
+    Current Date: ${new Date().toLocaleDateString()}
     Rating: ${context.thesis.rating} | Target: $${context.dcf.sharePriceTarget}
     Current P&L View: ${context.incomeStatement.rows[0].historical[2]} revenue vs ${context.incomeStatement.rows[0].projected[2]} projected.
     
@@ -243,6 +292,7 @@ export const analyzeCompany = async (tickerOrUrl: string): Promise<FullAnalysis>
     TERMINAL ROLE: Sovereign Intelligence Unit (Apex Capital AI).
     MODE: Institutional Deep-Dive.
     TARGET: ${tickerOrUrl}
+    CURRENT DATE: ${new Date().toLocaleDateString()}
 
     PROTOCOL: You are to function as a world-class AI-native Bloomberg Terminal replacement. 
     You must coordinate the following sub-agents to generate the output:
